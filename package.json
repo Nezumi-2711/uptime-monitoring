@@ -1,0 +1,41 @@
+{
+	"name": "uptime-monitoring",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"deploy": "bun run build && wrangler deploy",
+		"test": "vitest run",
+		"types": "wrangler types",
+		"db:local": "wrangler d1 migrations apply uptime --local",
+		"db:remote": "wrangler d1 migrations apply uptime --remote"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "^1.54.1",
+		"@cloudflare/vitest-plugin": "^1.1.1",
+		"@tailwindcss/vite": "^4.3.3",
+		"@types/node": "^26.4.0",
+		"@types/react": "^19.2.18",
+		"@types/react-dom": "^19.2.5",
+		"@vitejs/plugin-react": "^6.1.0",
+		"drizzle-kit": "^0.31.10",
+		"tailwindcss": "4",
+		"typescript": "^5.5.2",
+		"vite": "^8.2.2",
+		"vitest": "^4.1.11",
+		"wrangler": "^4.127.0"
+	},
+	"dependencies": {
+		"@tanstack/react-query": "^5.102.7",
+		"drizzle-orm": "^0.45.2",
+		"hono": "^4.13.5",
+		"react": "19",
+		"react-dom": "19"
+	},
+	"trustedDependencies": [
+		"workerd",
+		"esbuild"
+	]
+}
