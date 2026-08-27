@@ -1,15 +1,10 @@
 import { and, eq, gt } from "drizzle-orm";
 import type { CookieOptions } from "hono/utils/cookie";
 import type { Database } from "../db/client";
-import { sessions, users } from "../db/schema";
+import { sessions } from "../db/schema";
 
 export const SESSION_COOKIE = "upwatch_session";
 export const SESSION_DURATION_SECONDS = 7 * 24 * 60 * 60;
-
-export type SessionUser = {
-	id: string;
-	email: string;
-};
 
 function bytesToBase64Url(bytes: Uint8Array) {
 	let binary = "";
@@ -36,7 +31,6 @@ export function sessionCookieOptions(requestUrl: string): CookieOptions {
 
 export async function createSession(
 	db: Database,
-	userId: string,
 	userAgent: string | null,
 ) {
 	const token = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
@@ -44,7 +38,6 @@ export async function createSession(
 
 	await db.insert(sessions).values({
 		id: await sha256Hex(token),
-		userId,
 		createdAt: now,
 		expiresAt: new Date(now.getTime() + SESSION_DURATION_SECONDS * 1000),
 		userAgent,
@@ -53,14 +46,13 @@ export async function createSession(
 	return token;
 }
 
-export async function getSessionUser(
+export async function hasValidSession(
 	db: Database,
 	token: string,
-): Promise<SessionUser | null> {
+): Promise<boolean> {
 	const [result] = await db
-		.select({ id: users.id, email: users.email })
+		.select({ id: sessions.id })
 		.from(sessions)
-		.innerJoin(users, eq(sessions.userId, users.id))
 		.where(
 			and(
 				eq(sessions.id, await sha256Hex(token)),
@@ -69,7 +61,7 @@ export async function getSessionUser(
 		)
 		.limit(1);
 
-	return result ?? null;
+	return result !== undefined;
 }
 
 export async function revokeSession(db: Database, token: string) {

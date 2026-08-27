@@ -3,19 +3,18 @@ import { navigate } from "../lib/router";
 import { useLoginMutation, useSessionQuery } from "../queries/auth";
 
 export function LoginPage() {
-	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const sessionQuery = useSessionQuery();
 	const loginMutation = useLoginMutation();
 
 	useEffect(() => {
-		if (sessionQuery.data?.user) navigate("/", { replace: true });
-	}, [sessionQuery.data?.user]);
+		if (sessionQuery.data?.authenticated) navigate("/", { replace: true });
+	}, [sessionQuery.data?.authenticated]);
 
 	function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		loginMutation.mutate(
-			{ email, password },
+			{ password },
 			{ onSuccess: () => navigate("/", { replace: true }) },
 		);
 	}
@@ -38,23 +37,10 @@ export function LoginPage() {
 				<div className="auth-heading">
 					<p>Admin access</p>
 					<h1 id="login-title">Sign in to Upwatch</h1>
-					<span>Manage monitors and review incidents from one place.</span>
+					<span>Enter the admin password to manage your monitors.</span>
 				</div>
 
 				<form className="auth-form" onSubmit={handleSubmit}>
-					<div className="auth-field">
-						<label htmlFor="email">Email address</label>
-						<input
-							id="email"
-							type="email"
-							autoComplete="email"
-							value={email}
-							onChange={(event) => setEmail(event.target.value)}
-							required
-							autoFocus
-						/>
-					</div>
-
 					<div className="auth-field">
 						<label htmlFor="password">Password</label>
 						<input
@@ -65,6 +51,7 @@ export function LoginPage() {
 							onChange={(event) => setPassword(event.target.value)}
 							minLength={8}
 							required
+							autoFocus
 						/>
 					</div>
 

@@ -1,24 +1,16 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export const users = sqliteTable(
-	"users",
-	{
-		id: text("id").primaryKey(),
-		email: text("email").notNull(),
-		passwordHash: text("password_hash").notNull(),
-		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-	},
-	(table) => [uniqueIndex("users_email_unique").on(table.email)],
-);
+export const adminCredentials = sqliteTable("admin_credentials", {
+	id: integer("id").primaryKey(),
+	passwordHash: text("password_hash").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
 
 export const sessions = sqliteTable(
 	"sessions",
 	{
 		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => users.id, { onDelete: "cascade" }),
 		expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 		userAgent: text("user_agent"),

@@ -32,7 +32,7 @@ export function useLogoutMutation() {
 	return useMutation({
 		mutationFn: logout,
 		onSuccess: () => {
-			queryClient.setQueryData<SessionResponse>(authKeys.session(), { user: null });
+			queryClient.setQueryData<SessionResponse>(authKeys.session(), { authenticated: false });
 		},
 	});
 }

@@ -1,10 +1,10 @@
 import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { getDb } from "../db/client";
-import { getSessionUser, SESSION_COOKIE, type SessionUser } from "./session";
+import { hasValidSession, SESSION_COOKIE } from "./session";
 
 export type AuthVariables = {
-	user: SessionUser;
+	authenticated: true;
 };
 
 export const requireAuth = createMiddleware<{
@@ -14,9 +14,9 @@ export const requireAuth = createMiddleware<{
 	const token = getCookie(context, SESSION_COOKIE);
 	if (!token) return context.json({ message: "Authentication required" }, 401);
 
-	const user = await getSessionUser(getDb(context.env), token);
-	if (!user) return context.json({ message: "Authentication required" }, 401);
+	const authenticated = await hasValidSession(getDb(context.env), token);
+	if (!authenticated) return context.json({ message: "Authentication required" }, 401);
 
-	context.set("user", user);
+	context.set("authenticated", true);
 	await next();
 });

@@ -2,12 +2,12 @@ import { and, count, eq, gte } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { getDb } from "../db/client";
-import { loginAttempts, users } from "../db/schema";
+import { adminCredentials, loginAttempts } from "../db/schema";
 import { verifyPassword } from "../lib/password";
 import { requireAuth, type AuthVariables } from "../lib/require-auth";
 import {
 	createSession,
-	getSessionUser,
+	hasValidSession,
 	revokeSession,
 	SESSION_COOKIE,
 	sessionCookieOptions,
@@ -15,10 +15,9 @@ import {
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 10;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ADMIN_CREDENTIAL_ID = 1;
 
 type LoginBody = {
-	email?: unknown;
 	password?: unknown;
 };
 
@@ -33,13 +32,11 @@ authRoutes.post("/api/auth/login", async (context) => {
 	}
 
 	if (
-		typeof body.email !== "string" ||
-		!EMAIL_PATTERN.test(body.email.trim()) ||
 		typeof body.password !== "string" ||
 		body.password.length < 8
 	) {
 		return context.json(
-			{ message: "Enter a valid email and a password of at least 8 characters" },
+			{ message: "Enter a password of at least 8 characters" },
 			400,
 		);
 	}
@@ -64,34 +61,30 @@ authRoutes.post("/api/auth/login", async (context) => {
 		);
 	}
 
-	const email = body.email.trim().toLowerCase();
-	const [user] = await db
+	const [credential] = await db
 		.select({
-			id: users.id,
-			email: users.email,
-			passwordHash: users.passwordHash,
+			passwordHash: adminCredentials.passwordHash,
 		})
-		.from(users)
-		.where(eq(users.email, email))
+		.from(adminCredentials)
+		.where(eq(adminCredentials.id, ADMIN_CREDENTIAL_ID))
 		.limit(1);
-	const passwordMatches = user
-		? await verifyPassword(body.password, user.passwordHash)
+	const passwordMatches = credential
+		? await verifyPassword(body.password, credential.passwordHash)
 		: false;
 
-	if (!user || !passwordMatches) {
+	if (!credential || !passwordMatches) {
 		await db.insert(loginAttempts).values({ ipAddress, attemptedAt: new Date() });
-		return context.json({ message: "Email or password is incorrect" }, 401);
+		return context.json({ message: "Password is incorrect" }, 401);
 	}
 
 	await db.delete(loginAttempts).where(eq(loginAttempts.ipAddress, ipAddress));
 	const token = await createSession(
 		db,
-		user.id,
 		context.req.header("User-Agent") ?? null,
 	);
 	setCookie(context, SESSION_COOKIE, token, sessionCookieOptions(context.req.url));
 
-	return context.json({ user: { id: user.id, email: user.email } });
+	return context.json({ authenticated: true });
 });
 
 authRoutes.post("/api/auth/logout", requireAuth, async (context) => {
@@ -107,8 +100,10 @@ authRoutes.post("/api/auth/logout", requireAuth, async (context) => {
 
 authRoutes.get("/api/auth/me", async (context) => {
 	const token = getCookie(context, SESSION_COOKIE);
-	const user = token ? await getSessionUser(getDb(context.env), token) : null;
-	return context.json({ user });
+	const authenticated = token
+		? await hasValidSession(getDb(context.env), token)
+		: false;
+	return context.json({ authenticated });
 });
 
 export default authRoutes;

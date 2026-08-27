@@ -2,23 +2,20 @@ import { applyD1Migrations, env, SELF, type D1Migration } from "cloudflare:test"
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/worker/lib/password";
 
-const ADMIN_EMAIL = "admin@example.com";
 const ADMIN_PASSWORD = "correct-horse-battery-staple";
 
 async function seedAdmin() {
 	await env.DB.batch([
 		env.DB.prepare("DELETE FROM login_attempts"),
 		env.DB.prepare("DELETE FROM sessions"),
-		env.DB.prepare("DELETE FROM users"),
+		env.DB.prepare("DELETE FROM admin_credentials"),
 	]);
 
 	const now = Date.now();
 	await env.DB.prepare(
-		"INSERT INTO users (id, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+		"INSERT INTO admin_credentials (id, password_hash, created_at, updated_at) VALUES (1, ?, ?, ?)",
 	)
 		.bind(
-			"test-admin",
-			ADMIN_EMAIL,
 			await hashPassword(ADMIN_PASSWORD),
 			now,
 			now,
@@ -34,7 +31,7 @@ function login(password = ADMIN_PASSWORD, ipAddress = "198.51.100.10") {
 			"CF-Connecting-IP": ipAddress,
 			Origin: "https://example.com",
 		},
-		body: JSON.stringify({ email: ADMIN_EMAIL, password }),
+		body: JSON.stringify({ password }),
 	});
 }
 
@@ -49,19 +46,17 @@ describe("authentication", () => {
 	});
 	beforeEach(seedAdmin);
 
-	it("logs in with the admin credentials and creates an HttpOnly session", async () => {
+	it("logs in with the admin password and creates an HttpOnly session", async () => {
 		const response = await login();
-		const body = await response.json<{ user: { id: string; email: string } }>();
+		const body = await response.json<{ authenticated: boolean }>();
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("Set-Cookie")).toContain("upwatch_session=");
 		expect(response.headers.get("Set-Cookie")).toContain("HttpOnly");
 		expect(response.headers.get("Set-Cookie")).toContain("SameSite=Lax");
-		expect(body.user).toEqual({ id: "test-admin", email: ADMIN_EMAIL });
+		expect(body).toEqual({ authenticated: true });
 
-		const session = await env.DB.prepare("SELECT id FROM sessions WHERE user_id = ?")
-			.bind("test-admin")
-			.first();
+		const session = await env.DB.prepare("SELECT id FROM sessions").first();
 		expect(session).not.toBeNull();
 	});
 
@@ -71,14 +66,14 @@ describe("authentication", () => {
 		expect(response.status).toBe(401);
 		expect(response.headers.get("Set-Cookie")).toBeNull();
 		expect(await response.json()).toEqual({
-			message: "Email or password is incorrect",
+			message: "Password is incorrect",
 		});
 	});
 
-	it("returns a nullable user from the session endpoint", async () => {
+	it("returns authentication state from the session endpoint", async () => {
 		const anonymousResponse = await SELF.fetch("https://example.com/api/auth/me");
 		expect(anonymousResponse.status).toBe(200);
-		expect(await anonymousResponse.json()).toEqual({ user: null });
+		expect(await anonymousResponse.json()).toEqual({ authenticated: false });
 
 		const loginResponse = await login();
 		const authenticatedResponse = await SELF.fetch("https://example.com/api/auth/me", {
@@ -86,9 +81,7 @@ describe("authentication", () => {
 		});
 
 		expect(authenticatedResponse.status).toBe(200);
-		expect(await authenticatedResponse.json()).toEqual({
-			user: { id: "test-admin", email: ADMIN_EMAIL },
-		});
+		expect(await authenticatedResponse.json()).toEqual({ authenticated: true });
 	});
 
 	it("revokes the persisted session on logout", async () => {
@@ -111,7 +104,7 @@ describe("authentication", () => {
 		const sessionResponse = await SELF.fetch("https://example.com/api/auth/me", {
 			headers: { Cookie: cookie },
 		});
-		expect(await sessionResponse.json()).toEqual({ user: null });
+		expect(await sessionResponse.json()).toEqual({ authenticated: false });
 	});
 
 	it("rate limits repeated failed login attempts by IP", async () => {

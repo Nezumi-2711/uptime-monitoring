@@ -1,7 +1,5 @@
 import { hashPassword } from "../src/worker/lib/password";
 
-const EMAIL_PATTERN = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
-
 async function readPassword() {
 	if (!process.stdin.isTTY) {
 		return (await new Response(Bun.stdin.stream()).text()).trimEnd();
@@ -48,12 +46,6 @@ function shellDoubleQuoted(value: string) {
 	return value.replace(/[\\"$`]/g, "\\$&");
 }
 
-const email = process.argv[2]?.trim().toLowerCase();
-if (!email || !EMAIL_PATTERN.test(email)) {
-	console.error("Usage: bun run admin:create <email>");
-	process.exit(1);
-}
-
 const password = await readPassword();
 if (password.length < 8) {
 	console.error("Password must contain at least 8 characters.");
@@ -62,9 +54,9 @@ if (password.length < 8) {
 
 const now = Date.now();
 const statement = [
-	"INSERT OR REPLACE INTO users",
-	"(id, email, password_hash, created_at, updated_at)",
-	`VALUES (${sqlValue(crypto.randomUUID())}, ${sqlValue(email)}, ${sqlValue(await hashPassword(password))}, ${now}, ${now});`,
+	"INSERT OR REPLACE INTO admin_credentials",
+	"(id, password_hash, created_at, updated_at)",
+	`VALUES (1, ${sqlValue(await hashPassword(password))}, ${now}, ${now});`,
 ].join(" ");
 
 console.log("\nLocal database:");

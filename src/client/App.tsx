@@ -82,7 +82,7 @@ export function LandingPage() {
 					</div>
 
 					<div className="nav-actions">
-						{sessionQuery.data?.user ? (
+						{sessionQuery.data?.authenticated ? (
 							<button
 								className="nav-auth"
 								type="button"

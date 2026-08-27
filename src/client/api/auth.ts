@@ -1,16 +1,10 @@
 import { getJson, postJson } from "./http";
 
-export type AuthUser = {
-	id: string;
-	email: string;
-};
-
 export type SessionResponse = {
-	user: AuthUser | null;
+	authenticated: boolean;
 };
 
 export type LoginInput = {
-	email: string;
 	password: string;
 };
 
