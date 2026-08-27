@@ -5,6 +5,7 @@
     "": {
       "name": "uptime-monitoring",
       "dependencies": {
+        "@tanstack/react-query": "^5.102.7",
         "drizzle-orm": "^0.45.2",
         "hono": "^4.13.5",
         "react": "19",
@@ -251,6 +252,10 @@
     "@tailwindcss/oxide-win32-x64-msvc": ["@tailwindcss/oxide-win32-x64-msvc@4.3.3", "", { "os": "win32", "cpu": "x64" }, "sha512-yJ0pwIVc/nYeGoV02WtsN8KYyLQv7kyI2wDnkezyJlGGjkd4QLwDGAwl47YpPJeuI0M0ObaXGSPjvWDPeTPggw=="],
 
     "@tailwindcss/vite": ["@tailwindcss/vite@4.3.3", "", { "dependencies": { "@tailwindcss/node": "4.3.3", "@tailwindcss/oxide": "4.3.3", "tailwindcss": "4.3.3" }, "peerDependencies": { "vite": "^5.2.0 || ^6 || ^7 || ^8" } }, "sha512-yYU8cogLeSh/ms2jh8Fj7jaba/EWa7Ja6GoUqYZaraEuCI5YS6ms6ObZgjjedm+jm6XZjdNRWBpPP6Z86oOxcw=="],
+
+    "@tanstack/query-core": ["@tanstack/query-core@5.102.7", "", {}, "sha512-4TH8KQrCLoNs9Zvl1LW1iaZ9cZx3dGTgfZ1BnLrcRxMNnX/toe/dGbfvF/DkvbzRyfLfpMKZkembz3o0rnugtw=="],
+
+    "@tanstack/react-query": ["@tanstack/react-query@5.102.7", "", { "dependencies": { "@tanstack/query-core": "5.102.7" }, "peerDependencies": { "react": "^18 || ^19" } }, "sha512-bbd8T4jDIj9aPbNn11SsjNH8apKY4zspkrw63JRsNDXjpW5SRF7X0ipi7yrGd8DCs8QhYfhQJKqEj1YLru1DbQ=="],
 
     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, "sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA=="],
 

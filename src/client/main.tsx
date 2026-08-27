@@ -11,8 +11,6 @@ if (!root) {
 	throw new Error("Root element was not found");
 }
 
-// Trigger deploy
-
 createRoot(root).render(
 	<StrictMode>
 		<QueryClientProvider client={queryClient}>
