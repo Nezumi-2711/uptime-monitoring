@@ -1,4 +1,7 @@
 import { useHealthQuery } from "./queries/health";
+import { navigate, usePathname } from "./lib/router";
+import { LoginPage } from "./pages/LoginPage";
+import { useLogoutMutation, useSessionQuery } from "./queries/auth";
 
 type IconProps = {
 	className?: string;
@@ -54,8 +57,10 @@ function formatCheckedAt(timestamp: number) {
 	}).format(new Date(timestamp));
 }
 
-function App() {
+export function LandingPage() {
 	const { data: health, error, isError, isFetching, isPending, refetch } = useHealthQuery();
+	const sessionQuery = useSessionQuery();
+	const logoutMutation = useLogoutMutation();
 	const hasHealth = health !== undefined;
 	const isHealthy = hasHealth && health.ok && health.db?.ok === 1;
 	const statusLabel = isPending ? "Checking" : isHealthy ? "Operational" : "Degraded";
@@ -76,10 +81,27 @@ function App() {
 						<a href="#status">Status</a>
 					</div>
 
-					<a className="nav-cta" href="#status">
-						View live status
-						<ArrowIcon />
-					</a>
+					<div className="nav-actions">
+						{sessionQuery.data?.user ? (
+							<button
+								className="nav-auth"
+								type="button"
+								onClick={() => logoutMutation.mutate()}
+								disabled={logoutMutation.isPending}
+							>
+								{logoutMutation.isPending ? "Signing out…" : "Sign out"}
+							</button>
+						) : (
+							<a className="nav-auth" href="/login" onClick={(event) => {
+								event.preventDefault();
+								navigate("/login");
+							}}>Sign in</a>
+						)}
+						<a className="nav-cta" href="#status">
+							View live status
+							<ArrowIcon />
+						</a>
+					</div>
 				</nav>
 			</header>
 
@@ -193,6 +215,11 @@ function App() {
 			</footer>
 		</div>
 	);
+}
+
+function App() {
+	const pathname = usePathname();
+	return pathname === "/login" ? <LoginPage /> : <LandingPage />;
 }
 
 export default App;

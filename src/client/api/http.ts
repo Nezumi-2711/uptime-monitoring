@@ -8,6 +8,19 @@ export class ApiError extends Error {
 	}
 }
 
+async function getErrorMessage(response: Response) {
+	try {
+		const body = await response.json<{ message?: unknown }>();
+		if (typeof body.message === "string" && body.message.length > 0) {
+			return body.message;
+		}
+	} catch {
+		// Fall back to the HTTP status when the response is not JSON.
+	}
+
+	return `Request returned HTTP ${response.status}`;
+}
+
 export async function getJson<T>(
 	input: RequestInfo | URL,
 	init: RequestInit = {},
@@ -21,11 +34,25 @@ export async function getJson<T>(
 	});
 
 	if (!response.ok) {
-		throw new ApiError(
-		`Request returned HTTP ${response.status}`,
-		response.status,
-		);
+		throw new ApiError(await getErrorMessage(response), response.status);
 	}
 
 	return response.json() as Promise<T>;
+}
+
+export function postJson<T>(
+	input: RequestInfo | URL,
+	body?: unknown,
+	init: RequestInit = {},
+) {
+	const headers = new Headers(init.headers);
+	headers.set("Content-Type", "application/json");
+
+	return getJson<T>(input, {
+		...init,
+		method: "POST",
+		headers,
+		credentials: "same-origin",
+		body: body === undefined ? undefined : JSON.stringify(body),
+	});
 }
