@@ -40,7 +40,8 @@ export async function getJson<T>(
 	return response.json() as Promise<T>;
 }
 
-export function postJson<T>(
+function sendJson<T>(
+	method: "POST" | "PATCH" | "DELETE",
 	input: RequestInfo | URL,
 	body?: unknown,
 	init: RequestInit = {},
@@ -50,9 +51,32 @@ export function postJson<T>(
 
 	return getJson<T>(input, {
 		...init,
-		method: "POST",
+		method,
 		headers,
 		credentials: "same-origin",
 		body: body === undefined ? undefined : JSON.stringify(body),
 	});
+}
+
+export function postJson<T>(
+	input: RequestInfo | URL,
+	body?: unknown,
+	init: RequestInit = {},
+) {
+	return sendJson<T>("POST", input, body, init);
+}
+
+export function patchJson<T>(
+	input: RequestInfo | URL,
+	body?: unknown,
+	init: RequestInit = {},
+) {
+	return sendJson<T>("PATCH", input, body, init);
+}
+
+export function deleteJson<T>(
+	input: RequestInfo | URL,
+	init: RequestInit = {},
+) {
+	return sendJson<T>("DELETE", input, undefined, init);
 }

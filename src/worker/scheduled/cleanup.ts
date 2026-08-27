@@ -1,8 +1,9 @@
 import { lt } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { loginAttempts, sessions } from "../db/schema";
+import { checks, loginAttempts, sessions } from "../db/schema";
 
 const LOGIN_ATTEMPT_RETENTION_MS = 60 * 60 * 1000;
+const CHECK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function cleanupExpiredAuthRecords(env: Env) {
 	const db = getDb(env);
@@ -16,6 +17,14 @@ export async function cleanupExpiredAuthRecords(env: Env) {
 				lt(
 					loginAttempts.attemptedAt,
 					new Date(now.getTime() - LOGIN_ATTEMPT_RETENTION_MS),
+				),
+			),
+		db
+			.delete(checks)
+			.where(
+				lt(
+					checks.checkedAt,
+					new Date(now.getTime() - CHECK_RETENTION_MS),
 				),
 			),
 	]);

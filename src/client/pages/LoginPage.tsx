@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
+import { LogoMark } from "../components/icons";
 import { navigate } from "../lib/router";
 import { useLoginMutation, useSessionQuery } from "../queries/auth";
 
@@ -25,13 +26,10 @@ export function LoginPage() {
 
 	return (
 		<main className="auth-page">
-			<a className="auth-brand" href="/" onClick={(event) => {
-				event.preventDefault();
-				navigate("/");
-			}} aria-label="Upwatch home">
-				<span className="auth-brand-mark" aria-hidden="true">ϟ</span>
+			<div className="auth-brand" aria-label="Upwatch">
+				<LogoMark className="auth-brand-mark" />
 				<span>upwatch</span>
-			</a>
+			</div>
 
 			<section className="auth-card" aria-labelledby="login-title">
 				<div className="auth-heading">
