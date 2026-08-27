@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
+import { ArrowRight, Database, RefreshCw, Zap } from "lucide-react";
 import type { Monitor, MonitorInput, MonitorMethod } from "../api/monitors";
-import { ArrowIcon, DatabaseIcon, LogoMark, RefreshIcon } from "../components/icons";
 import { useLogoutMutation } from "../queries/auth";
 import {
 	useCreateMonitorMutation,
@@ -101,7 +101,7 @@ export function DashboardPage() {
 			<header className="dashboard-header">
 				<div className="dashboard-header-inner">
 					<a className="brand" href="/" aria-label="Upwatch dashboard">
-						<LogoMark className="brand-mark" />
+						<Zap className="brand-mark" fill="currentColor" />
 						<span>upwatch</span>
 					</a>
 					<div className="nav-actions">
@@ -124,7 +124,7 @@ export function DashboardPage() {
 						<button className="secondary-button" type="button" onClick={closeForm}>Close form</button>
 					) : monitorsQuery.isSuccess && monitors.length > 0 ? (
 						<button className="primary-button" type="button" onClick={openCreateForm}>
-							Add monitor <ArrowIcon />
+							Add monitor <ArrowRight />
 						</button>
 					) : null}
 				</section>
@@ -162,7 +162,7 @@ export function DashboardPage() {
 					<div className="panel-heading">
 						<div><h2 id="monitor-list-title">Configured sites</h2><p>Latest result for each monitored endpoint.</p></div>
 						<button className="icon-button" type="button" onClick={() => void monitorsQuery.refetch()} disabled={monitorsQuery.isFetching} aria-label="Refresh monitors">
-							<RefreshIcon className={monitorsQuery.isFetching ? "is-spinning" : ""} />
+							<RefreshCw className={monitorsQuery.isFetching ? "is-spinning" : ""} />
 						</button>
 					</div>
 
@@ -171,7 +171,7 @@ export function DashboardPage() {
 					) : monitorsQuery.isError ? (
 						<div className="panel-state error-state"><strong>Monitors could not be loaded</strong><p>{errorMessage(monitorsQuery.error, "Unknown request error")}</p><button className="secondary-button" type="button" onClick={() => void monitorsQuery.refetch()}>Try again</button></div>
 					) : monitors.length === 0 ? (
-						<div className="panel-state empty-state"><span className="empty-icon"><DatabaseIcon /></span><strong>No monitors yet</strong><p>Add the first endpoint to start collecting availability checks.</p>{!formOpen && <button className="primary-button" type="button" onClick={openCreateForm}>Add first site <ArrowIcon /></button>}</div>
+						<div className="panel-state empty-state"><span className="empty-icon"><Database /></span><strong>No monitors yet</strong><p>Add the first endpoint to start collecting availability checks.</p>{!formOpen && <button className="primary-button" type="button" onClick={openCreateForm}>Add first site <ArrowRight /></button>}</div>
 					) : (
 						<div className="monitor-list">
 							<div className="services-title"><span>Monitor</span><span>Latest result</span><span>Actions</span></div>
@@ -182,7 +182,7 @@ export function DashboardPage() {
 								const toggling = updateMutation.isPending && updateMutation.variables?.id === monitor.id;
 								return (
 									<article className={`service-row ${monitor.enabled ? "" : "is-disabled"}`} key={monitor.id}>
-										<div className="service-name"><span className="service-icon"><DatabaseIcon /></span><div><strong>{monitor.name}</strong><small title={monitor.url}>{monitor.url}</small><span className="monitor-meta">{monitor.method} · expect {monitor.expectedStatus} · every {monitor.intervalSeconds / 60}m</span></div></div>
+										<div className="service-name"><span className="service-icon"><Database /></span><div><strong>{monitor.name}</strong><small title={monitor.url}>{monitor.url}</small><span className="monitor-meta">{monitor.method} · expect {monitor.expectedStatus} · every {monitor.intervalSeconds / 60}m</span></div></div>
 										<div className="monitor-result"><span className={`row-status ${checking ? "checking" : status.className}`}><i />{checking ? "Checking" : status.label}</span><code>{monitor.lastStatusCode === null ? "—" : `HTTP ${monitor.lastStatusCode}`} · {monitor.lastLatencyMs === null ? "—" : `${monitor.lastLatencyMs} ms`}</code><small title={monitor.lastError ?? undefined}>{monitor.lastError ?? formatCheckedAt(monitor.lastCheckedAt)}</small></div>
 										<div className="row-actions"><button type="button" onClick={() => checkMutation.mutate(monitor.id)} disabled={checking}>Check now</button><button type="button" onClick={() => openEditForm(monitor)}>Edit</button><button type="button" onClick={() => updateMutation.mutate({ id: monitor.id, input: { enabled: !monitor.enabled } })} disabled={toggling}>{monitor.enabled ? "Disable" : "Enable"}</button><button className="danger-action" type="button" onClick={() => handleDelete(monitor)} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button></div>
 									</article>

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { LogoMark } from "../components/icons";
+import { Zap } from "lucide-react";
 import { navigate } from "../lib/router";
 import { useLoginMutation, useSessionQuery } from "../queries/auth";
 
@@ -27,7 +27,7 @@ export function LoginPage() {
 	return (
 		<main className="auth-page">
 			<div className="auth-brand" aria-label="Upwatch">
-				<LogoMark className="auth-brand-mark" />
+				<Zap className="auth-brand-mark" fill="currentColor" />
 				<span>upwatch</span>
 			</div>
 
