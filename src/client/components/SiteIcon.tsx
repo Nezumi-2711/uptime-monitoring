@@ -1,21 +1,19 @@
-import { Database } from "lucide-react";
-import { useState } from "react";
+import { Database } from 'lucide-react';
+import { useState } from 'react';
 
 type SiteIconProps = {
 	monitorId: number;
-	favicon?: "admin" | "public";
+	favicon?: 'admin' | 'public';
 };
 
-export function SiteIcon({ monitorId, favicon = "admin" }: SiteIconProps) {
+export function SiteIcon({ monitorId, favicon = 'admin' }: SiteIconProps) {
 	const [failed, setFailed] = useState(false);
 
 	if (failed) return <Database aria-hidden="true" />;
 
 	return (
 		<img
-			src={favicon === "public"
-				? `/api/status/${monitorId}/favicon`
-				: `/api/monitors/${monitorId}/favicon`}
+			src={favicon === 'public' ? `/api/status/${monitorId}/favicon` : `/api/monitors/${monitorId}/favicon`}
 			alt=""
 			width={22}
 			height={22}

@@ -1,4 +1,4 @@
-import { getJson, postJson, putJson } from "./http";
+import { getJson, postJson, putJson } from './http';
 
 export type NotificationSettings = {
 	id: number;
@@ -8,19 +8,19 @@ export type NotificationSettings = {
 	updatedAt: string | null;
 };
 
-export type NotificationSettingsInput = Pick<NotificationSettings, "webhookUrl" | "webhookEnabled">;
+export type NotificationSettingsInput = Pick<NotificationSettings, 'webhookUrl' | 'webhookEnabled'>;
 
 export function getNotificationSettings(signal?: AbortSignal) {
-	return getJson<{ settings: NotificationSettings }>("/api/settings/notifications", {
+	return getJson<{ settings: NotificationSettings }>('/api/settings/notifications', {
 		signal,
-		credentials: "same-origin",
+		credentials: 'same-origin',
 	});
 }
 
 export function updateNotificationSettings(input: NotificationSettingsInput) {
-	return putJson<{ settings: NotificationSettings }>("/api/settings/notifications", input);
+	return putJson<{ settings: NotificationSettings }>('/api/settings/notifications', input);
 }
 
 export function testNotificationWebhook() {
-	return postJson<{ ok: true }>("/api/settings/notifications/test");
+	return postJson<{ ok: true }>('/api/settings/notifications/test');
 }

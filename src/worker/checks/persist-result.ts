@@ -1,18 +1,13 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
-import type { Database } from "../db/client";
-import { checks, incidents, monitors } from "../db/schema";
-import type { CheckResult, Monitor } from "./run-check";
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import type { Database } from '../db/client';
+import { checks, incidents, monitors } from '../db/schema';
+import type { CheckResult, Monitor } from './run-check';
 
-export type IncidentTransition = "opened" | "resolved" | null;
+export type IncidentTransition = 'opened' | 'resolved' | null;
 
-type BatchStatement = Parameters<Database["batch"]>[0][number];
+type BatchStatement = Parameters<Database['batch']>[0][number];
 
-export function buildResultStatements(
-	db: Database,
-	monitor: Monitor,
-	result: CheckResult,
-	checkedAt: Date,
-) {
+export function buildResultStatements(db: Database, monitor: Monitor, result: CheckResult, checkedAt: Date) {
 	const statements: BatchStatement[] = [
 		db.insert(checks).values({
 			monitorId: monitor.id,
@@ -47,7 +42,7 @@ export function buildResultStatements(
 				updatedAt: checkedAt,
 			}),
 		);
-		transition = "opened";
+		transition = 'opened';
 	} else if (monitor.lastOk === false && result.ok) {
 		statements.push(
 			db
@@ -57,14 +52,9 @@ export function buildResultStatements(
 					durationMs: sql`${checkedAt.getTime()} - ${incidents.startedAt}`,
 					updatedAt: checkedAt,
 				})
-				.where(
-					and(
-						eq(incidents.monitorId, monitor.id),
-						isNull(incidents.resolvedAt),
-					),
-				),
+				.where(and(eq(incidents.monitorId, monitor.id), isNull(incidents.resolvedAt))),
 		);
-		transition = "resolved";
+		transition = 'resolved';
 	}
 
 	return { statements, transition };

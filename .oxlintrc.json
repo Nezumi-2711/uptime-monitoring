@@ -1,0 +1,42 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["react", "jsx-a11y", "import", "typescript", "oxc"],
+	"env": {
+		"browser": true,
+		"node": true,
+		"es2024": true
+	},
+	"settings": {
+		"react": {
+			"version": "19"
+		}
+	},
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn"
+	},
+	"rules": {
+		"react/react-in-jsx-scope": "off"
+	},
+	"overrides": [
+		{
+			"files": ["src/client/main.tsx"],
+			"rules": {
+				"import/no-unassigned-import": "off"
+			}
+		},
+		{
+			"files": ["src/client/components/charts/*.tsx"],
+			"rules": {
+				"jsx-a11y/prefer-tag-over-role": "off"
+			}
+		},
+		{
+			"files": ["src/client/components/StatusHistoryBar.tsx"],
+			"rules": {
+				"react/capitalized-calls": "off"
+			}
+		}
+	],
+	"ignorePatterns": ["dist/**", ".wrangler/**", "worker-configuration.d.ts", "migrations/**", "node_modules/**"]
+}

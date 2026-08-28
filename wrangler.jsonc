@@ -7,24 +7,24 @@
 	"assets": {
 		"directory": "./dist/client",
 		"not_found_handling": "single-page-application",
-		"run_worker_first": ["/api/*"]
+		"run_worker_first": ["/api/*"],
 	},
 	"triggers": {
-		"crons": ["*/5 * * * *", "5 0 * * *"]
+		"crons": ["*/5 * * * *", "5 0 * * *"],
 	},
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "uptime",
 			"database_id": "960b26fd-a11b-4899-826b-d3513e499d3a",
-			"migrations_dir": "migrations"
-		}
+			"migrations_dir": "migrations",
+		},
 	],
 	"observability": {
 		"enabled": true,
 		"logs": {
-			"head_sampling_rate": 1
-		}
+			"head_sampling_rate": 1,
+		},
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
 }

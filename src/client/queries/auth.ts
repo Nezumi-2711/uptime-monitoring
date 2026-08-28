@@ -1,10 +1,10 @@
-import { queryOptions, useMutation, useQuery } from "@tanstack/react-query";
-import { getSession, login, logout, type LoginInput, type SessionResponse } from "../api/auth";
-import { queryClient } from "../lib/query-client";
+import { queryOptions, useMutation, useQuery } from '@tanstack/react-query';
+import { getSession, login, logout, type LoginInput, type SessionResponse } from '../api/auth';
+import { queryClient } from '../lib/query-client';
 
 export const authKeys = {
-	all: ["auth"] as const,
-	session: () => [...authKeys.all, "session"] as const,
+	all: ['auth'] as const,
+	session: () => [...authKeys.all, 'session'] as const,
 };
 
 export const sessionQueryOptions = () =>

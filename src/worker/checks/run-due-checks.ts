@@ -1,9 +1,9 @@
-import { and, eq, sql } from "drizzle-orm";
-import { getDb } from "../db/client";
-import { monitors } from "../db/schema";
-import { sendIncidentAlert } from "../notifications/webhook";
-import { buildResultStatements } from "./persist-result";
-import { runCheck } from "./run-check";
+import { and, eq, sql } from 'drizzle-orm';
+import { getDb } from '../db/client';
+import { monitors } from '../db/schema';
+import { sendIncidentAlert } from '../notifications/webhook';
+import { buildResultStatements } from './persist-result';
+import { runCheck } from './run-check';
 
 const MAX_MONITORS_PER_RUN = 40;
 const CONCURRENCY = 10;
@@ -14,10 +14,7 @@ export type DueCheckSummary = {
 	down: number;
 };
 
-export async function runDueChecks(
-	env: Env,
-	ctx?: Pick<ExecutionContext, "waitUntil">,
-): Promise<DueCheckSummary> {
+export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitUntil'>): Promise<DueCheckSummary> {
 	const db = getDb(env);
 	const now = Date.now();
 	const due = await db
@@ -60,16 +57,20 @@ export async function runDueChecks(
 	}));
 	const statements = persisted.flatMap((item) => item.statements);
 
-	await db.batch(statements as [typeof statements[number], ...typeof statements]);
+	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 
-	const notifications = persisted.flatMap((item) => item.transition === null ? [] : [
-		sendIncidentAlert(env, {
-			monitor: item.monitor,
-			kind: item.transition,
-			result: item.result,
-			at: item.checkedAt,
-		}),
-	]);
+	const notifications = persisted.flatMap((item) =>
+		item.transition === null
+			? []
+			: [
+					sendIncidentAlert(env, {
+						monitor: item.monitor,
+						kind: item.transition,
+						result: item.result,
+						at: item.checkedAt,
+					}),
+				],
+	);
 	if (notifications.length > 0) {
 		const notificationWork = Promise.all(notifications).then(() => undefined);
 		if (ctx) ctx.waitUntil(notificationWork);

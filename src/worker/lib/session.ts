@@ -1,38 +1,33 @@
-import { and, eq, gt } from "drizzle-orm";
-import type { CookieOptions } from "hono/utils/cookie";
-import type { Database } from "../db/client";
-import { sessions } from "../db/schema";
+import { and, eq, gt } from 'drizzle-orm';
+import type { CookieOptions } from 'hono/utils/cookie';
+import type { Database } from '../db/client';
+import { sessions } from '../db/schema';
 
-export const SESSION_COOKIE = "upwatch_session";
+export const SESSION_COOKIE = 'upwatch_session';
 export const SESSION_DURATION_SECONDS = 7 * 24 * 60 * 60;
 
 function bytesToBase64Url(bytes: Uint8Array) {
-	let binary = "";
+	let binary = '';
 	for (const byte of bytes) binary += String.fromCharCode(byte);
-	return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+	return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
 async function sha256Hex(value: string) {
-	const digest = new Uint8Array(
-		await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
-	);
-	return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+	const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+	return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export function sessionCookieOptions(requestUrl: string): CookieOptions {
 	return {
 		httpOnly: true,
-		sameSite: "Lax",
-		path: "/",
+		sameSite: 'Lax',
+		path: '/',
 		maxAge: SESSION_DURATION_SECONDS,
-		secure: new URL(requestUrl).protocol === "https:",
+		secure: new URL(requestUrl).protocol === 'https:',
 	};
 }
 
-export async function createSession(
-	db: Database,
-	userAgent: string | null,
-) {
+export async function createSession(db: Database, userAgent: string | null) {
 	const token = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
 	const now = new Date();
 
@@ -46,19 +41,11 @@ export async function createSession(
 	return token;
 }
 
-export async function hasValidSession(
-	db: Database,
-	token: string,
-): Promise<boolean> {
+export async function hasValidSession(db: Database, token: string): Promise<boolean> {
 	const [result] = await db
 		.select({ id: sessions.id })
 		.from(sessions)
-		.where(
-			and(
-				eq(sessions.id, await sha256Hex(token)),
-				gt(sessions.expiresAt, new Date()),
-			),
-		)
+		.where(and(eq(sessions.id, await sha256Hex(token)), gt(sessions.expiresAt, new Date())))
 		.limit(1);
 
 	return result !== undefined;

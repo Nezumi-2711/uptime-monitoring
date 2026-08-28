@@ -1,6 +1,6 @@
-import { deleteJson, getJson, patchJson, postJson } from "./http";
+import { deleteJson, getJson, patchJson, postJson } from './http';
 
-export type MonitorMethod = "GET" | "HEAD" | "POST";
+export type MonitorMethod = 'GET' | 'HEAD' | 'POST';
 
 export type Monitor = {
 	id: number;
@@ -66,34 +66,34 @@ export type StatsWindow = {
 };
 
 export type MonitorStats = {
-	windows: Record<"24h" | "7d" | "30d" | "90d", StatsWindow>;
+	windows: Record<'24h' | '7d' | '30d' | '90d', StatsWindow>;
 };
 
 export function listMonitors(signal?: AbortSignal) {
-	return getJson<{ monitors: Monitor[] }>("/api/monitors", {
+	return getJson<{ monitors: Monitor[] }>('/api/monitors', {
 		signal,
-		credentials: "same-origin",
+		credentials: 'same-origin',
 	});
 }
 
 export function getMonitor(id: number, signal?: AbortSignal) {
-	return getJson<{ monitor: Monitor }>(`/api/monitors/${id}`, { signal, credentials: "same-origin" });
+	return getJson<{ monitor: Monitor }>(`/api/monitors/${id}`, { signal, credentials: 'same-origin' });
 }
 
 export function listChecks(id: number, limit = 100, signal?: AbortSignal) {
-	return getJson<{ checks: Check[] }>(`/api/monitors/${id}/checks?limit=${limit}`, { signal, credentials: "same-origin" });
+	return getJson<{ checks: Check[] }>(`/api/monitors/${id}/checks?limit=${limit}`, { signal, credentials: 'same-origin' });
 }
 
 export function getMonitorStats(id: number, signal?: AbortSignal) {
-	return getJson<MonitorStats>(`/api/monitors/${id}/stats`, { signal, credentials: "same-origin" });
+	return getJson<MonitorStats>(`/api/monitors/${id}/stats`, { signal, credentials: 'same-origin' });
 }
 
 export function listIncidents(id: number, limit = 50, signal?: AbortSignal) {
-	return getJson<{ incidents: Incident[] }>(`/api/monitors/${id}/incidents?limit=${limit}`, { signal, credentials: "same-origin" });
+	return getJson<{ incidents: Incident[] }>(`/api/monitors/${id}/incidents?limit=${limit}`, { signal, credentials: 'same-origin' });
 }
 
 export function createMonitor(input: MonitorInput) {
-	return postJson<{ monitor: Monitor }>("/api/monitors", input);
+	return postJson<{ monitor: Monitor }>('/api/monitors', input);
 }
 
 export function updateMonitor(id: number, input: Partial<MonitorInput>) {

@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { getStatus } from "../api/status";
+import { useQuery } from '@tanstack/react-query';
+import { getStatus } from '../api/status';
 
 export const statusKeys = {
-	all: ["public-status"] as const,
+	all: ['public-status'] as const,
 };
 
 export function useStatusQuery() {

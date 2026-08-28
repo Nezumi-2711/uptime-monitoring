@@ -1,4 +1,4 @@
-import { getJson } from "./http";
+import { getJson } from './http';
 
 export type HealthResponse = {
 	ok: boolean;
@@ -7,5 +7,5 @@ export type HealthResponse = {
 };
 
 export function getHealth(signal?: AbortSignal) {
-	return getJson<HealthResponse>("/api/health", { signal });
+	return getJson<HealthResponse>('/api/health', { signal });
 }

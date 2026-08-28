@@ -1,7 +1,7 @@
-import { getJson } from "./http";
+import { getJson } from './http';
 
-export type PublicServiceStatus = "up" | "down" | "unknown";
-export type PublicOverallStatus = "operational" | "degraded" | "down";
+export type PublicServiceStatus = 'up' | 'down' | 'unknown';
+export type PublicOverallStatus = 'operational' | 'degraded' | 'down';
 
 export type PublicService = {
 	id: number;
@@ -22,5 +22,5 @@ export type PublicStatus = {
 };
 
 export function getStatus(signal?: AbortSignal) {
-	return getJson<PublicStatus>("/api/status", { signal });
+	return getJson<PublicStatus>('/api/status', { signal });
 }

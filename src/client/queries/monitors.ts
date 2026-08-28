@@ -1,4 +1,4 @@
-import { queryOptions, useMutation, useQuery } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery } from '@tanstack/react-query';
 import {
 	createMonitor,
 	deleteMonitor,
@@ -10,16 +10,16 @@ import {
 	runMonitorCheck,
 	updateMonitor,
 	type MonitorInput,
-} from "../api/monitors";
-import { queryClient } from "../lib/query-client";
+} from '../api/monitors';
+import { queryClient } from '../lib/query-client';
 
 export const monitorKeys = {
-	all: ["monitors"] as const,
-	list: () => [...monitorKeys.all, "list"] as const,
-	detail: (id: number) => [...monitorKeys.all, "detail", id] as const,
-	checks: (id: number) => [...monitorKeys.all, "checks", id] as const,
-	stats: (id: number) => [...monitorKeys.all, "stats", id] as const,
-	incidents: (id: number) => [...monitorKeys.all, "incidents", id] as const,
+	all: ['monitors'] as const,
+	list: () => [...monitorKeys.all, 'list'] as const,
+	detail: (id: number) => [...monitorKeys.all, 'detail', id] as const,
+	checks: (id: number) => [...monitorKeys.all, 'checks', id] as const,
+	stats: (id: number) => [...monitorKeys.all, 'stats', id] as const,
+	incidents: (id: number) => [...monitorKeys.all, 'incidents', id] as const,
 };
 
 export const monitorsQueryOptions = () =>
@@ -88,8 +88,7 @@ export function useCreateMonitorMutation() {
 
 export function useUpdateMonitorMutation() {
 	return useMutation({
-		mutationFn: ({ id, input }: { id: number; input: Partial<MonitorInput> }) =>
-			updateMonitor(id, input),
+		mutationFn: ({ id, input }: { id: number; input: Partial<MonitorInput> }) => updateMonitor(id, input),
 		onSuccess: invalidateMonitors,
 	});
 }

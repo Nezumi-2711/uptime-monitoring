@@ -1,9 +1,9 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
-import { getHealth } from "../api/health";
+import { queryOptions, useQuery } from '@tanstack/react-query';
+import { getHealth } from '../api/health';
 
 export const healthKeys = {
-	all: ["health"] as const,
-	status: () => [...healthKeys.all, "status"] as const,
+	all: ['health'] as const,
+	status: () => [...healthKeys.all, 'status'] as const,
 };
 
 export const healthQueryOptions = () =>

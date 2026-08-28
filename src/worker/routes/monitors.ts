@@ -1,13 +1,13 @@
-import { and, desc, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
-import { Hono } from "hono";
-import { buildResultStatements } from "../checks/persist-result";
-import { runCheck } from "../checks/run-check";
-import { getDb } from "../db/client";
-import { checks, incidents, monitorDailyStats, monitors } from "../db/schema";
-import { requireAuth, type AuthVariables } from "../lib/require-auth";
-import { sendIncidentAlert } from "../notifications/webhook";
+import { and, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { buildResultStatements } from '../checks/persist-result';
+import { runCheck } from '../checks/run-check';
+import { getDb } from '../db/client';
+import { checks, incidents, monitors } from '../db/schema';
+import { requireAuth, type AuthVariables } from '../lib/require-auth';
+import { sendIncidentAlert } from '../notifications/webhook';
 
-type MonitorMethod = "GET" | "HEAD" | "POST";
+type MonitorMethod = 'GET' | 'HEAD' | 'POST';
 
 type ParsedMonitorInput = {
 	name?: string;
@@ -20,11 +20,9 @@ type ParsedMonitorInput = {
 	alertsEnabled?: boolean;
 };
 
-type ParseResult =
-	| { ok: true; value: ParsedMonitorInput }
-	| { ok: false; message: string };
+type ParseResult = { ok: true; value: ParsedMonitorInput } | { ok: false; message: string };
 
-const METHODS = new Set<MonitorMethod>(["GET", "HEAD", "POST"]);
+const METHODS = new Set<MonitorMethod>(['GET', 'HEAD', 'POST']);
 const FAVICON_CACHE_SECONDS = 86_400;
 const FAVICON_FETCH_TIMEOUT_MS = 5_000;
 const MAX_FAVICON_BYTES = 1024 * 1024;
@@ -42,31 +40,33 @@ type EdgeCache = {
 };
 
 function isPrivateHostname(rawHostname: string): boolean {
-	const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-	if (hostname === "localhost" || hostname.endsWith(".localhost")) return true;
+	const hostname = rawHostname
+		.toLowerCase()
+		.replace(/^\[|\]$/g, '')
+		.replace(/\.$/, '');
+	if (hostname === 'localhost' || hostname.endsWith('.localhost')) return true;
 
-	const ipv4 = hostname.split(".").map(Number);
+	const ipv4 = hostname.split('.').map(Number);
 	if (ipv4.length === 4 && ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
 		const [first, second] = ipv4;
-		return first === 0
-			|| first === 10
-			|| first === 127
-			|| (first === 169 && second === 254)
-			|| (first === 172 && second >= 16 && second <= 31)
-			|| (first === 192 && second === 168);
+		return (
+			first === 0 ||
+			first === 10 ||
+			first === 127 ||
+			(first === 169 && second === 254) ||
+			(first === 172 && second >= 16 && second <= 31) ||
+			(first === 192 && second === 168)
+		);
 	}
 
-	if (hostname === "::" || hostname === "::1") return true;
+	if (hostname === '::' || hostname === '::1') return true;
 	if (/^f[cd][0-9a-f]{2}(?::|$)/i.test(hostname) || /^fe[89ab][0-9a-f](?::|$)/i.test(hostname)) return true;
 	const mappedIpv4 = hostname.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
 	return mappedIpv4 ? isPrivateHostname(mappedIpv4[1]) : false;
 }
 
 function isSafeRemoteUrl(url: URL) {
-	return (url.protocol === "http:" || url.protocol === "https:")
-		&& !url.username
-		&& !url.password
-		&& !isPrivateHostname(url.hostname);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password && !isPrivateHostname(url.hostname);
 }
 
 async function readBodyLimited(response: Response, maximum: number, truncate: boolean) {
@@ -117,16 +117,16 @@ async function fetchRemote(url: URL, maximumBytes: number, truncate = false) {
 			if (!isSafeRemoteUrl(currentUrl)) return null;
 			const response = await fetch(currentUrl, {
 				headers: {
-					Accept: "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,text/html;q=0.5,*/*;q=0.1",
-					"User-Agent": "Upwatch Favicon Proxy/1.0",
+					Accept: 'image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,text/html;q=0.5,*/*;q=0.1',
+					'User-Agent': 'Upwatch Favicon Proxy/1.0',
 				},
-				redirect: "manual",
+				redirect: 'manual',
 				signal: controller.signal,
 			});
 
 			if ([301, 302, 303, 307, 308].includes(response.status)) {
 				if (response.body) await response.body.cancel().catch(() => undefined);
-				const location = response.headers.get("Location");
+				const location = response.headers.get('Location');
 				if (!location || redirects === MAX_REDIRECTS) return null;
 				try {
 					currentUrl = new URL(location, currentUrl);
@@ -141,7 +141,7 @@ async function fetchRemote(url: URL, maximumBytes: number, truncate = false) {
 				return null;
 			}
 
-			const declaredLength = Number(response.headers.get("Content-Length"));
+			const declaredLength = Number(response.headers.get('Content-Length'));
 			if (!truncate && Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
 				if (response.body) await response.body.cancel().catch(() => undefined);
 				return null;
@@ -161,9 +161,9 @@ async function fetchRemote(url: URL, maximumBytes: number, truncate = false) {
 }
 
 function imageContentType(headers: Headers) {
-	const contentType = headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
-	if (!contentType || contentType === "application/octet-stream") return "image/x-icon";
-	if (!contentType.startsWith("image/")) {
+	const contentType = headers.get('Content-Type')?.split(';', 1)[0].trim().toLowerCase();
+	if (!contentType || contentType === 'application/octet-stream') return 'image/x-icon';
+	if (!contentType.startsWith('image/')) {
 		return null;
 	}
 	return contentType;
@@ -172,7 +172,7 @@ function imageContentType(headers: Headers) {
 function readTagAttribute(tag: string, name: string) {
 	const attributes = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 	for (const match of tag.matchAll(attributes)) {
-		if (match[1].toLowerCase() === name) return match[2] ?? match[3] ?? match[4] ?? "";
+		if (match[1].toLowerCase() === name) return match[2] ?? match[3] ?? match[4] ?? '';
 	}
 	return null;
 }
@@ -182,7 +182,7 @@ function findFaviconUrl(html: string, pageUrl: URL) {
 	const head = closingHead >= 0 ? html.slice(0, closingHead) : html;
 	let baseUrl = pageUrl;
 	const baseTag = head.match(/<base\b[^>]*>/i)?.[0];
-	const baseHref = baseTag ? readTagAttribute(baseTag, "href") : null;
+	const baseHref = baseTag ? readTagAttribute(baseTag, 'href') : null;
 	if (baseHref) {
 		try {
 			const candidate = new URL(baseHref, pageUrl);
@@ -193,9 +193,9 @@ function findFaviconUrl(html: string, pageUrl: URL) {
 	}
 
 	for (const match of head.matchAll(/<link\b[^>]*>/gi)) {
-		const rel = readTagAttribute(match[0], "rel")?.toLowerCase().split(/\s+/) ?? [];
-		if (!rel.includes("icon") && !rel.includes("apple-touch-icon")) continue;
-		const href = readTagAttribute(match[0], "href");
+		const rel = readTagAttribute(match[0], 'rel')?.toLowerCase().split(/\s+/) ?? [];
+		if (!rel.includes('icon') && !rel.includes('apple-touch-icon')) continue;
+		const href = readTagAttribute(match[0], 'href');
 		if (!href) continue;
 		try {
 			const faviconUrl = new URL(href, baseUrl);
@@ -217,7 +217,7 @@ export async function resolveFavicon(siteUrl: string): Promise<FaviconResult | n
 	if (!isSafeRemoteUrl(site)) return null;
 
 	const origin = new URL(site.origin);
-	const defaultIcon = await fetchRemote(new URL("/favicon.ico", origin), MAX_FAVICON_BYTES);
+	const defaultIcon = await fetchRemote(new URL('/favicon.ico', origin), MAX_FAVICON_BYTES);
 	if (defaultIcon && defaultIcon.body.byteLength > 0) {
 		const contentType = imageContentType(defaultIcon.headers);
 		if (contentType) return { body: defaultIcon.body, contentType };
@@ -225,8 +225,8 @@ export async function resolveFavicon(siteUrl: string): Promise<FaviconResult | n
 
 	const page = await fetchRemote(origin, MAX_HEAD_BYTES, true);
 	if (!page || page.body.byteLength === 0) return null;
-	const pageContentType = page.headers.get("Content-Type")?.toLowerCase();
-	if (pageContentType && !pageContentType.includes("text/html") && !pageContentType.includes("application/xhtml+xml")) {
+	const pageContentType = page.headers.get('Content-Type')?.toLowerCase();
+	if (pageContentType && !pageContentType.includes('text/html') && !pageContentType.includes('application/xhtml+xml')) {
 		return null;
 	}
 	const faviconUrl = findFaviconUrl(new TextDecoder().decode(page.body), page.url);
@@ -239,7 +239,7 @@ export async function resolveFavicon(siteUrl: string): Promise<FaviconResult | n
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function parseInteger(
@@ -258,40 +258,40 @@ function parseInteger(
 }
 
 export function parseMonitorInput(body: unknown, partial = false): ParseResult {
-	if (!isRecord(body)) return { ok: false, message: "Invalid request body" };
+	if (!isRecord(body)) return { ok: false, message: 'Invalid request body' };
 
 	const value: ParsedMonitorInput = {};
-	if (!partial || "name" in body) {
-		if (typeof body.name !== "string" || body.name.trim().length < 1 || body.name.trim().length > 100) {
-			return { ok: false, message: "Name must be between 1 and 100 characters" };
+	if (!partial || 'name' in body) {
+		if (typeof body.name !== 'string' || body.name.trim().length < 1 || body.name.trim().length > 100) {
+			return { ok: false, message: 'Name must be between 1 and 100 characters' };
 		}
 		value.name = body.name.trim();
 	}
 
-	if (!partial || "url" in body) {
-		if (typeof body.url !== "string") {
-			return { ok: false, message: "Enter a valid http or https URL" };
+	if (!partial || 'url' in body) {
+		if (typeof body.url !== 'string') {
+			return { ok: false, message: 'Enter a valid http or https URL' };
 		}
 		try {
 			const url = new URL(body.url);
-			if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Invalid protocol");
+			if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Invalid protocol');
 			value.url = url.toString();
 		} catch {
-			return { ok: false, message: "Enter a valid http or https URL" };
+			return { ok: false, message: 'Enter a valid http or https URL' };
 		}
 	}
 
-	if (!partial || "method" in body) {
-		if (typeof body.method !== "string" || !METHODS.has(body.method as MonitorMethod)) {
-			return { ok: false, message: "Method must be GET, HEAD, or POST" };
+	if (!partial || 'method' in body) {
+		if (typeof body.method !== 'string' || !METHODS.has(body.method as MonitorMethod)) {
+			return { ok: false, message: 'Method must be GET, HEAD, or POST' };
 		}
 		value.method = body.method as MonitorMethod;
 	}
 
 	for (const [key, label, minimum, maximum] of [
-		["expectedStatus", "expectedStatus", 100, 599],
-		["intervalSeconds", "intervalSeconds", 300, 86_400],
-		["timeoutMs", "timeoutMs", 1_000, 30_000],
+		['expectedStatus', 'expectedStatus', 100, 599],
+		['intervalSeconds', 'intervalSeconds', 300, 86_400],
+		['timeoutMs', 'timeoutMs', 1_000, 30_000],
 	] as const) {
 		if (!partial || key in body) {
 			const parsed = parseInteger(body[key], label, minimum, maximum);
@@ -300,15 +300,15 @@ export function parseMonitorInput(body: unknown, partial = false): ParseResult {
 		}
 	}
 
-	if ("enabled" in body) {
-		if (typeof body.enabled !== "boolean") {
-			return { ok: false, message: "enabled must be a boolean" };
+	if ('enabled' in body) {
+		if (typeof body.enabled !== 'boolean') {
+			return { ok: false, message: 'enabled must be a boolean' };
 		}
 		value.enabled = body.enabled;
 	}
-	if ("alertsEnabled" in body) {
-		if (typeof body.alertsEnabled !== "boolean") {
-			return { ok: false, message: "alertsEnabled must be a boolean" };
+	if ('alertsEnabled' in body) {
+		if (typeof body.alertsEnabled !== 'boolean') {
+			return { ok: false, message: 'alertsEnabled must be a boolean' };
 		}
 		value.alertsEnabled = body.alertsEnabled;
 	}
@@ -335,10 +335,7 @@ type StatsWindow = {
 	incidentCount: number;
 };
 
-function asStatsWindow(
-	row: { totalChecks: number; upChecks: number; avgLatencyMs: number | null },
-	incidentCount: number,
-): StatsWindow {
+function asStatsWindow(row: { totalChecks: number; upChecks: number; avgLatencyMs: number | null }, incidentCount: number): StatsWindow {
 	return {
 		uptimePct: row.totalChecks > 0 ? Math.round((row.upChecks / row.totalChecks) * 100_000) / 1_000 : null,
 		totalChecks: row.totalChecks,
@@ -350,38 +347,33 @@ function asStatsWindow(
 
 const monitorRoutes = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
-monitorRoutes.use("*", requireAuth);
+monitorRoutes.use('*', requireAuth);
 
-monitorRoutes.get("/", async (context) => {
+monitorRoutes.get('/', async (context) => {
 	const rows = await getDb(context.env).select().from(monitors).orderBy(monitors.createdAt);
 	return context.json({ monitors: rows });
 });
 
-monitorRoutes.get("/:id", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
+monitorRoutes.get('/:id', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
 	const [monitor] = await getDb(context.env).select().from(monitors).where(eq(monitors.id, id)).limit(1);
-	if (!monitor) return context.json({ message: "Monitor not found" }, 404);
+	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 	return context.json({ monitor });
 });
 
-monitorRoutes.get("/:id/checks", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
-	const limit = parseLimit(context.req.query("limit"), 100, 500);
-	const rows = await getDb(context.env)
-		.select()
-		.from(checks)
-		.where(eq(checks.monitorId, id))
-		.orderBy(desc(checks.checkedAt))
-		.limit(limit);
+monitorRoutes.get('/:id/checks', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
+	const limit = parseLimit(context.req.query('limit'), 100, 500);
+	const rows = await getDb(context.env).select().from(checks).where(eq(checks.monitorId, id)).orderBy(desc(checks.checkedAt)).limit(limit);
 	return context.json({ checks: rows });
 });
 
-monitorRoutes.get("/:id/incidents", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
-	const limit = parseLimit(context.req.query("limit"), 50, 200);
+monitorRoutes.get('/:id/incidents', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
+	const limit = parseLimit(context.req.query('limit'), 50, 200);
 	const rows = await getDb(context.env)
 		.select()
 		.from(incidents)
@@ -391,34 +383,38 @@ monitorRoutes.get("/:id/incidents", async (context) => {
 	return context.json({ incidents: rows });
 });
 
-monitorRoutes.get("/:id/stats", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
+monitorRoutes.get('/:id/stats', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
 	const db = getDb(context.env);
 	const [monitor] = await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, id)).limit(1);
-	if (!monitor) return context.json({ message: "Monitor not found" }, 404);
+	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 
 	const now = Date.now();
 	const currentDayMs = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate());
 	const windows = [
-		{ key: "24h", start: now - 24 * 60 * 60 * 1000, raw: true },
-		{ key: "7d", start: now - 7 * 24 * 60 * 60 * 1000, raw: true },
-		{ key: "30d", start: currentDayMs - 29 * 24 * 60 * 60 * 1000, raw: false },
-		{ key: "90d", start: currentDayMs - 89 * 24 * 60 * 60 * 1000, raw: false },
+		{ key: '24h', start: now - 24 * 60 * 60 * 1000, raw: true },
+		{ key: '7d', start: now - 7 * 24 * 60 * 60 * 1000, raw: true },
+		{ key: '30d', start: currentDayMs - 29 * 24 * 60 * 60 * 1000, raw: false },
+		{ key: '90d', start: currentDayMs - 89 * 24 * 60 * 60 * 1000, raw: false },
 	] as const;
 
-	const results = await Promise.all(windows.map(async (window) => {
-		const [aggregate] = window.raw
-			? await db.select({
-				totalChecks: sql<number>`count(*)`,
-				upChecks: sql<number>`coalesce(sum(case when ${checks.ok} = 1 then 1 else 0 end), 0)`,
-				avgLatencyMs: sql<number | null>`round(avg(${checks.latencyMs}))`,
-			}).from(checks).where(and(eq(checks.monitorId, id), gte(checks.checkedAt, new Date(window.start))))
-			: await db.select({
-				totalChecks: sql<number>`coalesce(sum(total_checks), 0)`,
-				upChecks: sql<number>`coalesce(sum(up_checks), 0)`,
-				avgLatencyMs: sql<number | null>`round(sum(avg_latency_ms * total_checks) / nullif(sum(total_checks), 0))`,
-			}).from(sql`(
+	const results = await Promise.all(
+		windows.map(async (window) => {
+			const [aggregate] = window.raw
+				? await db
+						.select({
+							totalChecks: sql<number>`count(*)`,
+							upChecks: sql<number>`coalesce(sum(case when ${checks.ok} = 1 then 1 else 0 end), 0)`,
+							avgLatencyMs: sql<number | null>`round(avg(${checks.latencyMs}))`,
+						})
+						.from(checks)
+						.where(and(eq(checks.monitorId, id), gte(checks.checkedAt, new Date(window.start))))
+				: await db.select({
+						totalChecks: sql<number>`coalesce(sum(total_checks), 0)`,
+						upChecks: sql<number>`coalesce(sum(up_checks), 0)`,
+						avgLatencyMs: sql<number | null>`round(sum(avg_latency_ms * total_checks) / nullif(sum(total_checks), 0))`,
+					}).from(sql`(
 				select total_checks, up_checks, avg_latency_ms
 				from monitor_daily_stats
 				where monitor_id = ${id} and day >= ${window.start} and day < ${currentDayMs}
@@ -427,28 +423,28 @@ monitorRoutes.get("/:id/stats", async (context) => {
 				from checks
 				where monitor_id = ${id} and checked_at >= ${currentDayMs}
 			)`);
-		const [incidentAggregate] = await db.select({ count: sql<number>`count(*)` })
-			.from(incidents)
-			.where(and(
-				eq(incidents.monitorId, id),
-				gte(incidents.startedAt, new Date(window.start)),
-				or(isNull(incidents.resolvedAt), gte(incidents.resolvedAt, new Date(window.start))),
-			));
-		return [window.key, asStatsWindow(aggregate, incidentAggregate.count)] as const;
-	}));
+			const [incidentAggregate] = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(incidents)
+				.where(
+					and(
+						eq(incidents.monitorId, id),
+						gte(incidents.startedAt, new Date(window.start)),
+						or(isNull(incidents.resolvedAt), gte(incidents.resolvedAt, new Date(window.start))),
+					),
+				);
+			return [window.key, asStatsWindow(aggregate, incidentAggregate.count)] as const;
+		}),
+	);
 
-	return context.json({ windows: Object.fromEntries(results) as Record<(typeof windows)[number]["key"], StatsWindow> });
+	return context.json({ windows: Object.fromEntries(results) as Record<(typeof windows)[number]['key'], StatsWindow> });
 });
 
-monitorRoutes.get("/:id/favicon", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
-	const [monitor] = await getDb(context.env)
-		.select({ url: monitors.url })
-		.from(monitors)
-		.where(eq(monitors.id, id))
-		.limit(1);
-	if (!monitor) return context.json({ message: "Monitor not found" }, 404);
+monitorRoutes.get('/:id/favicon', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
+	const [monitor] = await getDb(context.env).select({ url: monitors.url }).from(monitors).where(eq(monitors.id, id)).limit(1);
+	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 
 	const cacheKey = new Request(`${new URL(context.req.url).origin}/api/monitors/${id}/favicon`);
 	let cache: EdgeCache | null = null;
@@ -462,14 +458,14 @@ monitorRoutes.get("/:id/favicon", async (context) => {
 	}
 
 	const favicon = await resolveFavicon(monitor.url);
-	if (!favicon) return context.json({ message: "No favicon" }, 404);
+	if (!favicon) return context.json({ message: 'No favicon' }, 404);
 
 	const response = new Response(favicon.body, {
 		headers: {
-			"Cache-Control": `public, max-age=${FAVICON_CACHE_SECONDS}`,
-			"Content-Length": String(favicon.body.byteLength),
-			"Content-Type": favicon.contentType,
-			"X-Content-Type-Options": "nosniff",
+			'Cache-Control': `public, max-age=${FAVICON_CACHE_SECONDS}`,
+			'Content-Length': String(favicon.body.byteLength),
+			'Content-Type': favicon.contentType,
+			'X-Content-Type-Options': 'nosniff',
 		},
 	});
 	if (cache) {
@@ -478,12 +474,12 @@ monitorRoutes.get("/:id/favicon", async (context) => {
 	return response;
 });
 
-monitorRoutes.post("/", async (context) => {
+monitorRoutes.post('/', async (context) => {
 	let body: unknown;
 	try {
 		body = await context.req.json();
 	} catch {
-		return context.json({ message: "Invalid request body" }, 400);
+		return context.json({ message: 'Invalid request body' }, 400);
 	}
 
 	const parsed = parseMonitorInput(body);
@@ -509,21 +505,21 @@ monitorRoutes.post("/", async (context) => {
 	return context.json({ monitor });
 });
 
-monitorRoutes.patch("/:id", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
+monitorRoutes.patch('/:id', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
 
 	let body: unknown;
 	try {
 		body = await context.req.json();
 	} catch {
-		return context.json({ message: "Invalid request body" }, 400);
+		return context.json({ message: 'Invalid request body' }, 400);
 	}
 
 	const parsed = parseMonitorInput(body, true);
 	if (!parsed.ok) return context.json({ message: parsed.message }, 400);
 	if (Object.keys(parsed.value).length === 0) {
-		return context.json({ message: "Provide at least one field to update" }, 400);
+		return context.json({ message: 'Provide at least one field to update' }, 400);
 	}
 
 	const [monitor] = await getDb(context.env)
@@ -531,38 +527,35 @@ monitorRoutes.patch("/:id", async (context) => {
 		.set({ ...parsed.value, updatedAt: new Date() })
 		.where(eq(monitors.id, id))
 		.returning();
-	if (!monitor) return context.json({ message: "Monitor not found" }, 404);
+	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 
 	return context.json({ monitor });
 });
 
-monitorRoutes.delete("/:id", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
+monitorRoutes.delete('/:id', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
 
 	const db = getDb(context.env);
 	const [monitor] = await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, id)).limit(1);
-	if (!monitor) return context.json({ message: "Monitor not found" }, 404);
+	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 
-	await db.batch([
-		db.delete(checks).where(eq(checks.monitorId, id)),
-		db.delete(monitors).where(eq(monitors.id, id)),
-	]);
+	await db.batch([db.delete(checks).where(eq(checks.monitorId, id)), db.delete(monitors).where(eq(monitors.id, id))]);
 	return context.json({ ok: true });
 });
 
-monitorRoutes.post("/:id/check", async (context) => {
-	const id = parseId(context.req.param("id"));
-	if (id === null) return context.json({ message: "Monitor not found" }, 404);
+monitorRoutes.post('/:id/check', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
 
 	const db = getDb(context.env);
 	const [monitor] = await db.select().from(monitors).where(eq(monitors.id, id)).limit(1);
-	if (!monitor) return context.json({ message: "Monitor not found" }, 404);
+	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 
 	const result = await runCheck(monitor);
 	const checkedAt = new Date();
 	const { statements, transition } = buildResultStatements(db, monitor, result, checkedAt);
-	await db.batch(statements as [typeof statements[number], ...typeof statements]);
+	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 	if (transition) {
 		await sendIncidentAlert(context.env, { monitor, kind: transition, result, at: checkedAt });
 	}

@@ -1,15 +1,15 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
 	getNotificationSettings,
 	testNotificationWebhook,
 	updateNotificationSettings,
 	type NotificationSettingsInput,
-} from "../api/settings";
-import { queryClient } from "../lib/query-client";
+} from '../api/settings';
+import { queryClient } from '../lib/query-client';
 
 export const settingsKeys = {
-	all: ["settings"] as const,
-	notifications: () => [...settingsKeys.all, "notifications"] as const,
+	all: ['settings'] as const,
+	notifications: () => [...settingsKeys.all, 'notifications'] as const,
 };
 
 export function useNotificationSettingsQuery() {

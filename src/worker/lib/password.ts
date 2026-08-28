@@ -1,4 +1,4 @@
-const HASH_ALGORITHM = "SHA-256";
+const HASH_ALGORITHM = 'SHA-256';
 const HASH_BYTES = 32;
 const SALT_BYTES = 16;
 
@@ -7,7 +7,7 @@ const SALT_BYTES = 16;
 export const PBKDF2_ITERATIONS = 25_000;
 
 function bytesToBase64(bytes: Uint8Array) {
-	let binary = "";
+	let binary = '';
 	for (const byte of bytes) binary += String.fromCharCode(byte);
 	return btoa(binary);
 }
@@ -18,18 +18,12 @@ function base64ToBytes(value: string) {
 }
 
 async function derivePassword(plain: string, salt: ArrayBuffer, iterations: number) {
-	const key = await crypto.subtle.importKey(
-		"raw",
-		new TextEncoder().encode(plain),
-		"PBKDF2",
-		false,
-		["deriveBits"],
-	);
+	const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(plain), 'PBKDF2', false, ['deriveBits']);
 
 	return new Uint8Array(
 		await crypto.subtle.deriveBits(
 			{
-				name: "PBKDF2",
+				name: 'PBKDF2',
 				hash: HASH_ALGORITHM,
 				salt,
 				iterations,
@@ -48,12 +42,12 @@ export async function hashPassword(plain: string) {
 }
 
 export async function verifyPassword(plain: string, stored: string) {
-	const [scheme, digest, iterationValue, saltValue, hashValue, ...extra] = stored.split("$");
+	const [scheme, digest, iterationValue, saltValue, hashValue, ...extra] = stored.split('$');
 	const iterations = Number(iterationValue);
 
 	if (
-		scheme !== "pbkdf2" ||
-		digest !== "sha256" ||
+		scheme !== 'pbkdf2' ||
+		digest !== 'sha256' ||
 		extra.length > 0 ||
 		!Number.isSafeInteger(iterations) ||
 		iterations < 1 ||
@@ -69,11 +63,7 @@ export async function verifyPassword(plain: string, stored: string) {
 		const expected = base64ToBytes(hashValue);
 		if (salt.length !== SALT_BYTES || expected.length !== HASH_BYTES) return false;
 
-		const actual = await derivePassword(
-			plain,
-			Uint8Array.from(salt).buffer,
-			iterations,
-		);
+		const actual = await derivePassword(plain, Uint8Array.from(salt).buffer, iterations);
 		const subtle = crypto.subtle as SubtleCrypto & {
 			timingSafeEqual(a: ArrayBufferView, b: ArrayBufferView): boolean;
 		};

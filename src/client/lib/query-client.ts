@@ -1,8 +1,8 @@
-import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
-import { ApiError } from "../api/http";
-import type { SessionResponse } from "../api/auth";
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
+import { ApiError } from '../api/http';
+import type { SessionResponse } from '../api/auth';
 
-const sessionQueryKey = ["auth", "session"] as const;
+const sessionQueryKey = ['auth', 'session'] as const;
 
 function handleAuthError(error: unknown) {
 	if (error instanceof ApiError && error.status === 401) {

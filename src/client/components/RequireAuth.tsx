@@ -1,7 +1,7 @@
-import { type ReactNode, useEffect } from "react";
-import { Zap } from "lucide-react";
-import { navigate } from "../lib/router";
-import { useSessionQuery } from "../queries/auth";
+import { type ReactNode, useEffect } from 'react';
+import { Zap } from 'lucide-react';
+import { navigate } from '../lib/router';
+import { useSessionQuery } from '../queries/auth';
 
 function FullPageLoading() {
 	return (
@@ -18,7 +18,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		if (!sessionQuery.isPending && !authenticated) {
-			navigate("/login", { replace: true });
+			navigate('/login', { replace: true });
 		}
 	}, [sessionQuery.isPending, authenticated]);
 
