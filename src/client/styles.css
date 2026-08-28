@@ -404,6 +404,8 @@ button { color: inherit; }
 	.auth-card { padding: 28px 22px; }
 	.auth-heading h1 { font-size: 27px; }
 	.dashboard-header-inner { height: 62px; }
+	.status-header-action { min-height: 36px; padding: 6px 14px; }
+	.public-services-heading .icon-button { flex: 0 0 44px; width: 44px; height: 44px; }
 	.dashboard-main { padding-top: 32px; }
 	.dashboard-intro > div > p:last-child { font-size: 14px; line-height: 1.5; }
 	.panel-heading { min-height: 70px; padding: 14px 16px; }
