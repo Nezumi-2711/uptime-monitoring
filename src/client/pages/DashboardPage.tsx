@@ -1,5 +1,15 @@
 import { type FormEvent, useState } from "react";
-import { ArrowRight, Database, RefreshCw, Zap } from "lucide-react";
+import {
+	ArrowRight,
+	Database,
+	History,
+	Pencil,
+	Power,
+	PowerOff,
+	RefreshCw,
+	Trash2,
+	Zap,
+} from "lucide-react";
 import type { Monitor, MonitorInput, MonitorMethod } from "../api/monitors";
 import { SiteIcon } from "../components/SiteIcon";
 import { useLogoutMutation } from "../queries/auth";
@@ -190,7 +200,25 @@ export function DashboardPage() {
 									<article className={`service-row ${monitor.enabled ? "" : "is-disabled"}`} key={monitor.id}>
 										<div className="service-name"><span className="service-icon"><SiteIcon key={monitor.url} monitorId={monitor.id} /></span><div><button className="monitor-name-link" type="button" onClick={() => navigate(`/monitors/${monitor.id}`)}>{monitor.name}</button><small title={monitor.url}>{monitor.url}</small><span className="monitor-meta">{monitor.method} · expect {monitor.expectedStatus} · every {monitor.intervalSeconds / 60}m</span></div></div>
 										<div className="monitor-result"><span className={`row-status ${checking ? "checking" : status.className}`}><i />{checking ? "Checking" : status.label}</span><code>{monitor.lastStatusCode === null ? "—" : `HTTP ${monitor.lastStatusCode}`} · {monitor.lastLatencyMs === null ? "—" : `${monitor.lastLatencyMs} ms`}</code><small title={monitor.lastError ?? undefined}>{monitor.lastError ?? formatCheckedAt(monitor.lastCheckedAt)}</small></div>
-										<div className="row-actions"><button type="button" onClick={() => navigate(`/monitors/${monitor.id}`)}>History</button><button type="button" onClick={() => checkMutation.mutate(monitor.id)} disabled={checking}>Check now</button><button type="button" onClick={() => openEditForm(monitor)}>Edit</button><button type="button" onClick={() => updateMutation.mutate({ id: monitor.id, input: { enabled: !monitor.enabled } })} disabled={toggling}>{monitor.enabled ? "Disable" : "Enable"}</button><button className="danger-action" type="button" onClick={() => handleDelete(monitor)} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button></div>
+										<div className="row-actions" aria-label={`Actions for ${monitor.name}`}>
+											<button className="row-action row-action-labeled" type="button" onClick={() => navigate(`/monitors/${monitor.id}`)}>
+												<History aria-hidden="true" />
+												<span>History</span>
+											</button>
+											<button className="row-action row-action-labeled row-action-accent" type="button" onClick={() => checkMutation.mutate(monitor.id)} disabled={checking} aria-busy={checking}>
+												<RefreshCw className={checking ? "is-spinning" : ""} aria-hidden="true" />
+												<span>{checking ? "Checking" : "Check now"}</span>
+											</button>
+											<button className="row-action row-action-icon" type="button" onClick={() => openEditForm(monitor)} aria-label={`Edit ${monitor.name}`} title="Edit monitor">
+												<Pencil aria-hidden="true" />
+											</button>
+											<button className="row-action row-action-icon" type="button" onClick={() => updateMutation.mutate({ id: monitor.id, input: { enabled: !monitor.enabled } })} disabled={toggling} aria-label={`${monitor.enabled ? "Disable" : "Enable"} ${monitor.name}`} title={`${monitor.enabled ? "Disable" : "Enable"} monitor`}>
+												{monitor.enabled ? <PowerOff aria-hidden="true" /> : <Power aria-hidden="true" />}
+											</button>
+											<button className="row-action row-action-icon danger-action" type="button" onClick={() => handleDelete(monitor)} disabled={deleting} aria-label={`Delete ${monitor.name}`} title="Delete monitor" aria-busy={deleting}>
+												<Trash2 aria-hidden="true" />
+											</button>
+										</div>
 									</article>
 								);
 							})}

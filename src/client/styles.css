@@ -97,6 +97,7 @@ button { color: inherit; }
 .is-spinning { animation: spin 900ms linear infinite; }
 .services-title, .service-row { display: grid; grid-template-columns: minmax(320px, 1.35fr) minmax(220px, 0.8fr) minmax(340px, 1fr); align-items: center; column-gap: 20px; }
 .services-title { min-height: 40px; padding: 0 20px; border-bottom: 1px solid #e8e8e8; font-size: 12px; color: #888; background: #fafafa; }
+.services-title span:last-child { justify-self: start; }
 .service-row { min-height: 112px; padding: 18px 20px; transition: opacity 160ms ease, background 160ms ease; }
 .service-row + .service-row { border-top: 1px solid #ededed; }
 .service-row:hover { background: #fdfdfd; }
@@ -122,11 +123,23 @@ button { color: inherit; }
 .row-status.offline { color: #ae3d3d; }
 .row-status.checking { color: #8b7722; }
 .row-status.checking i { background: #d7bd53; animation: blink 1.1s ease-in-out infinite; }
-.row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
-.row-actions button { min-height: 32px; padding: 6px 9px; border: 1px solid #d8d8d8; border-radius: 6px; font-size: 12px; color: #555; background: #fff; cursor: pointer; }
-.row-actions button:hover:not(:disabled) { border-color: #aaa; color: #222; background: #fafafa; }
-.row-actions button:disabled { cursor: wait; opacity: 0.55; }
-.row-actions .danger-action { color: #a03b3b; }
+.row-actions {
+	display: grid; grid-template-columns: auto auto repeat(3, 34px); justify-content: space-between; justify-self: stretch; width: 100%; gap: 4px;
+}
+.row-action {
+	display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 34px; padding: 6px 10px;
+	border: 1px solid transparent; border-radius: 6px; font-size: 11px; font-weight: 500; line-height: 1; color: #626262; background: transparent;
+	cursor: pointer; white-space: nowrap; transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.row-action svg { flex: 0 0 auto; width: 14px; height: 14px; stroke-width: 1.8; }
+.row-action-icon { width: 34px; padding: 0; }
+.row-action:hover:not(:disabled) { border-color: #e1e1e1; color: #222; background: #f8f8f8; }
+.row-action:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+.row-action:disabled { cursor: wait; opacity: 0.48; }
+.row-action-accent { color: #11764e; background: #eef9f4; }
+.row-action-accent:hover:not(:disabled) { border-color: #c9eadb; color: #0d6542; background: #e4f6ed; }
+.row-actions .danger-action { color: #a33d3d; }
+.row-actions .danger-action:hover:not(:disabled) { border-color: #efd1d1; color: #922f2f; background: #fff2f2; }
 
 .panel-state { display: grid; justify-items: center; padding: 72px 24px; text-align: center; }
 .panel-state strong { font-size: 16px; font-weight: 500; }
@@ -361,7 +374,12 @@ button { color: inherit; }
 	.form-actions.compact-actions { grid-column: span 2; }
 	.services-title { display: none; }
 	.service-row { grid-template-columns: minmax(280px, 1fr) minmax(200px, 0.7fr); }
-	.row-actions { grid-column: 1 / -1; justify-content: flex-start; margin-left: 54px; }
+	.row-actions {
+		display: flex; grid-column: 1 / -1; align-items: center; justify-content: flex-end; justify-self: stretch; gap: 4px;
+		width: calc(100% + 40px); max-width: none; margin: 4px -20px -18px; padding: 12px 20px 12px 74px;
+		border-top: 1px solid #ededed; background: linear-gradient(90deg, #fcfcfc, #fff);
+	}
+	.row-actions::before { margin-right: auto; font-size: 11px; font-weight: 500; color: #999; content: "Actions"; }
 	.sla-grid { grid-template-columns: repeat(3, 1fr); }
 	.detail-grid, .detail-grid.lower-grid { grid-template-columns: 1fr; }
 }
@@ -384,7 +402,7 @@ button { color: inherit; }
 	.form-actions.compact-actions { grid-column: auto; }
 	.form-actions button { flex: 1; }
 	.service-row { grid-template-columns: 1fr; gap: 18px; }
-	.row-actions { grid-column: auto; margin-left: 54px; }
+	.row-actions { grid-column: auto; }
 	.dashboard-page-footer { flex-direction: column; gap: 8px; }
 	.detail-hero { align-items: flex-start; flex-direction: column; }
 	.detail-actions { flex-wrap: wrap; }
@@ -410,8 +428,14 @@ button { color: inherit; }
 	.dashboard-intro > div > p:last-child { font-size: 14px; line-height: 1.5; }
 	.panel-heading { min-height: 70px; padding: 14px 16px; }
 	.service-row { padding: 18px 16px; }
-	.row-actions { margin-left: 0; }
-	.row-actions button { flex: 1; }
+	.row-actions {
+		display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) repeat(3, 40px); justify-content: space-between; justify-self: stretch;
+		width: 100%; max-width: none; margin: 0; padding: 3px;
+		border: 1px solid #dedede; border-radius: 9px; background: #f8f8f8; box-shadow: 0 1px 2px rgb(0 0 0 / 0.035);
+	}
+	.row-actions::before { display: none; }
+	.row-action { min-height: 40px; }
+	.row-action-icon { width: 40px; }
 	.nav-actions { gap: 12px; }
 	.detail-title { align-items: flex-start; }
 	.status-orb { margin-top: 11px; }
@@ -432,6 +456,10 @@ button { color: inherit; }
 	.public-service-uptime strong { font-size: 15px; }
 	.uptime-days { height: 28px; gap: 1px; }
 	.status-footer { align-items: flex-start; flex-direction: column; gap: 8px; }
+}
+
+@media (max-width: 380px) {
+	.row-action-labeled svg { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
