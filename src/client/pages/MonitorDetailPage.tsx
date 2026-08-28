@@ -1,4 +1,5 @@
 import { ArrowLeft, BellOff, CheckCircle2, Clock3, ExternalLink, RefreshCw, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { LatencySparkline } from '../components/charts/LatencySparkline';
 import { UptimeBar } from '../components/charts/UptimeBar';
 import { navigate } from '../lib/router';
@@ -54,9 +55,9 @@ export function MonitorDetailPage({ id }: { id: number }) {
 			<div className="detail-error">
 				<strong>Monitor not found</strong>
 				<p>The requested monitor could not be loaded.</p>
-				<button className="secondary-button" onClick={() => navigate('/dashboard')}>
+				<Button variant="unstyled" className="secondary-button" onClick={() => navigate('/dashboard')}>
 					Return to dashboard
-				</button>
+				</Button>
 			</div>
 		);
 
@@ -64,24 +65,24 @@ export function MonitorDetailPage({ id }: { id: number }) {
 		<div className="dashboard-shell">
 			<header className="dashboard-header">
 				<div className="dashboard-header-inner">
-					<button className="brand brand-button" type="button" onClick={() => navigate('/dashboard')}>
+					<Button variant="unstyled" className="brand brand-button" type="button" onClick={() => navigate('/dashboard')}>
 						<Zap className="brand-mark" fill="currentColor" />
 						<span>upwatch</span>
-					</button>
+					</Button>
 					<div className="nav-actions">
-						<button className="nav-auth" onClick={() => navigate('/settings')}>
+						<Button variant="unstyled" className="nav-auth" onClick={() => navigate('/settings')}>
 							Settings
-						</button>
-						<button className="nav-auth" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
+						</Button>
+						<Button variant="unstyled" className="nav-auth" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
 							Sign out
-						</button>
+						</Button>
 					</div>
 				</div>
 			</header>
 			<main className="dashboard-main detail-main">
-				<button className="back-link" type="button" onClick={() => navigate('/dashboard')}>
+				<Button variant="unstyled" className="back-link" type="button" onClick={() => navigate('/dashboard')}>
 					<ArrowLeft /> All monitors
-				</button>
+				</Button>
 				<section className="detail-hero">
 					<div className="detail-title">
 						<span className={`status-orb ${status.className}`} />
@@ -104,9 +105,15 @@ export function MonitorDetailPage({ id }: { id: number }) {
 								<BellOff /> Alerts muted
 							</span>
 						)}
-						<button className="primary-button" type="button" onClick={() => checkMutation.mutate(id)} disabled={checkMutation.isPending}>
+						<Button
+							variant="unstyled"
+							className="primary-button"
+							type="button"
+							onClick={() => checkMutation.mutate(id)}
+							disabled={checkMutation.isPending}
+						>
 							{checkMutation.isPending ? 'Checking…' : 'Check now'}
-						</button>
+						</Button>
 					</div>
 				</section>
 

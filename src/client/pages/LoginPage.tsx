@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { navigate } from '../lib/router';
 import { useLoginMutation, useSessionQuery } from '../queries/auth';
 
@@ -53,9 +54,9 @@ export function LoginPage() {
 						</p>
 					)}
 
-					<button className="auth-submit" type="submit" disabled={loginMutation.isPending}>
+					<Button variant="unstyled" className="auth-submit" type="submit" disabled={loginMutation.isPending}>
 						{loginMutation.isPending ? 'Signing in…' : 'Sign in'}
-					</button>
+					</Button>
 				</form>
 			</section>
 

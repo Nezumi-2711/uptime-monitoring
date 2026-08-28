@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react';
 import { ArrowLeft, BellRing, Send, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { NotificationSettings } from '../api/settings';
 import { navigate } from '../lib/router';
 import { useLogoutMutation } from '../queries/auth';
@@ -45,17 +46,18 @@ function SettingsForm({ settings }: { settings: NotificationSettings }) {
 				</span>
 			</label>
 			<div className="settings-actions">
-				<button
+				<Button
+					variant="unstyled"
 					className="secondary-button"
 					type="button"
 					onClick={() => testMutation.mutate()}
 					disabled={!settings.webhookUrl || testMutation.isPending}
 				>
 					<Send /> {testMutation.isPending ? 'Sending…' : 'Send test'}
-				</button>
-				<button className="primary-button" type="submit" disabled={updateMutation.isPending}>
+				</Button>
+				<Button variant="unstyled" className="primary-button" type="submit" disabled={updateMutation.isPending}>
 					{updateMutation.isPending ? 'Saving…' : 'Save settings'}
-				</button>
+				</Button>
 			</div>
 			{updateMutation.isSuccess && <p className="settings-success">Notification settings saved.</p>}
 			{testMutation.isSuccess && <p className="settings-success">Test webhook delivered successfully.</p>}
@@ -73,22 +75,22 @@ export function SettingsPage() {
 		<div className="dashboard-shell">
 			<header className="dashboard-header">
 				<div className="dashboard-header-inner">
-					<button className="brand brand-button" onClick={() => navigate('/dashboard')}>
+					<Button variant="unstyled" className="brand brand-button" onClick={() => navigate('/dashboard')}>
 						<Zap className="brand-mark" fill="currentColor" />
 						<span>upwatch</span>
-					</button>
+					</Button>
 					<div className="nav-actions">
 						<span className="header-context">Settings</span>
-						<button className="nav-auth" onClick={() => logoutMutation.mutate()}>
+						<Button variant="unstyled" className="nav-auth" onClick={() => logoutMutation.mutate()}>
 							Sign out
-						</button>
+						</Button>
 					</div>
 				</div>
 			</header>
 			<main className="settings-main">
-				<button className="back-link" type="button" onClick={() => navigate('/dashboard')}>
+				<Button variant="unstyled" className="back-link" type="button" onClick={() => navigate('/dashboard')}>
 					<ArrowLeft /> Dashboard
-				</button>
+				</Button>
 				<section className="settings-heading">
 					<p className="overline">Integrations</p>
 					<h1>Notifications</h1>

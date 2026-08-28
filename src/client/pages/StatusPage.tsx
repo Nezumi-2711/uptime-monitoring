@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Activity, CircleCheck, Database, RefreshCw, TriangleAlert, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { PublicOverallStatus, PublicServiceStatus } from '../api/status';
 import { SiteIcon } from '../components/SiteIcon';
 import { StatusHistoryBar } from '../components/StatusHistoryBar';
@@ -65,13 +66,14 @@ export function StatusPage() {
 						<Zap className="brand-mark" fill="currentColor" />
 						<span>upwatch</span>
 					</a>
-					<button
+					<Button
+						variant="unstyled"
 						className="status-header-action"
 						type="button"
 						onClick={() => navigate(sessionQuery.data?.authenticated ? '/dashboard' : '/login')}
 					>
 						{sessionQuery.data?.authenticated ? 'Dashboard' : 'Sign in'}
-					</button>
+					</Button>
 				</div>
 			</header>
 
@@ -102,9 +104,9 @@ export function StatusPage() {
 						</span>
 						<strong>Status could not be loaded</strong>
 						<p>{errorMessage(statusQuery.error)}</p>
-						<button className="secondary-button" type="button" onClick={() => void statusQuery.refetch()}>
+						<Button variant="unstyled" className="secondary-button" type="button" onClick={() => void statusQuery.refetch()}>
 							Try again
-						</button>
+						</Button>
 					</section>
 				) : (
 					<>
@@ -125,7 +127,8 @@ export function StatusPage() {
 									<h2 id="public-services-title">Services</h2>
 									<p>Availability is calculated from checks collected over the last 90 days.</p>
 								</div>
-								<button
+								<Button
+									variant="unstyled"
 									className="icon-button"
 									type="button"
 									onClick={() => void statusQuery.refetch()}
@@ -133,7 +136,7 @@ export function StatusPage() {
 									aria-label="Refresh service status"
 								>
 									<RefreshCw className={statusQuery.isFetching ? 'is-spinning' : ''} />
-								</button>
+								</Button>
 							</div>
 
 							{status.services.length === 0 ? (

@@ -1,5 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { ArrowRight, Database, History, Pencil, Power, PowerOff, RefreshCw, Trash2, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Monitor, MonitorInput, MonitorMethod } from '../api/monitors';
 import { SiteIcon } from '../components/SiteIcon';
 import { useLogoutMutation } from '../queries/auth';
@@ -112,12 +114,18 @@ export function DashboardPage() {
 						<a className="nav-auth" href="/">
 							View status page
 						</a>
-						<button className="nav-auth" type="button" onClick={() => navigate('/settings')}>
+						<Button variant="unstyled" className="nav-auth" type="button" onClick={() => navigate('/settings')}>
 							Settings
-						</button>
-						<button className="nav-auth" type="button" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
+						</Button>
+						<Button
+							variant="unstyled"
+							className="nav-auth"
+							type="button"
+							onClick={() => logoutMutation.mutate()}
+							disabled={logoutMutation.isPending}
+						>
 							{logoutMutation.isPending ? 'Signing out…' : 'Sign out'}
-						</button>
+						</Button>
 					</div>
 				</div>
 			</header>
@@ -129,14 +137,10 @@ export function DashboardPage() {
 						<h1>Monitors</h1>
 						<p>Track endpoint availability from Cloudflare's edge every five minutes.</p>
 					</div>
-					{formOpen ? (
-						<button className="secondary-button" type="button" onClick={closeForm}>
-							Close form
-						</button>
-					) : monitorsQuery.isSuccess && monitors.length > 0 ? (
-						<button className="primary-button" type="button" onClick={openCreateForm}>
+					{monitorsQuery.isSuccess && monitors.length > 0 ? (
+						<Button variant="unstyled" className="primary-button" type="button" onClick={openCreateForm}>
 							Add monitor <ArrowRight />
-						</button>
+						</Button>
 					) : null}
 				</section>
 
@@ -158,15 +162,26 @@ export function DashboardPage() {
 					</div>
 				</section>
 
-				{formOpen && (
-					<section className="monitor-form-panel" aria-labelledby="monitor-form-title">
-						<div className="form-panel-heading">
-							<div>
-								<p className="overline">Configuration</p>
-								<h2 id="monitor-form-title">{editing ? `Edit ${editing.name}` : 'Add a monitor'}</h2>
-							</div>
-							<p>Checks run on the configured schedule, with a minimum interval of five minutes.</p>
-						</div>
+				<Dialog
+					open={formOpen}
+					onOpenChange={(open) => {
+						if (!open) closeForm();
+					}}
+				>
+					<DialogContent
+						className="max-h-[85vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-3xl"
+						onEscapeKeyDown={(event) => {
+							if (formMutation.isPending) event.preventDefault();
+						}}
+						onInteractOutside={(event) => {
+							if (formMutation.isPending) event.preventDefault();
+						}}
+					>
+						<DialogHeader>
+							<p className="overline">Configuration</p>
+							<DialogTitle>{editing ? `Edit ${editing.name}` : 'Add a monitor'}</DialogTitle>
+							<DialogDescription>Checks run on the configured schedule, with a minimum interval of five minutes.</DialogDescription>
+						</DialogHeader>
 						<form className="monitor-form" onSubmit={handleSubmit}>
 							<label className="field field-name">
 								<span>Name</span>
@@ -243,12 +258,12 @@ export function DashboardPage() {
 								<span>Enable incident alerts</span>
 							</label>
 							<div className="form-actions compact-actions">
-								<button className="secondary-button" type="button" onClick={closeForm}>
+								<Button variant="unstyled" className="secondary-button" type="button" onClick={closeForm}>
 									Cancel
-								</button>
-								<button className="primary-button" type="submit" disabled={formMutation.isPending}>
+								</Button>
+								<Button variant="unstyled" className="primary-button" type="submit" disabled={formMutation.isPending}>
 									{formMutation.isPending ? 'Saving…' : editing ? 'Save changes' : 'Add monitor'}
-								</button>
+								</Button>
 							</div>
 							{formMutation.isError && (
 								<p className="form-error" role="alert">
@@ -256,8 +271,8 @@ export function DashboardPage() {
 								</p>
 							)}
 						</form>
-					</section>
-				)}
+					</DialogContent>
+				</Dialog>
 
 				<section className="services-panel" aria-labelledby="monitor-list-title">
 					<div className="panel-heading">
@@ -265,7 +280,8 @@ export function DashboardPage() {
 							<h2 id="monitor-list-title">Configured sites</h2>
 							<p>Latest result for each monitored endpoint.</p>
 						</div>
-						<button
+						<Button
+							variant="unstyled"
 							className="icon-button"
 							type="button"
 							onClick={() => void monitorsQuery.refetch()}
@@ -273,7 +289,7 @@ export function DashboardPage() {
 							aria-label="Refresh monitors"
 						>
 							<RefreshCw className={monitorsQuery.isFetching ? 'is-spinning' : ''} />
-						</button>
+						</Button>
 					</div>
 
 					{monitorsQuery.isPending ? (
@@ -290,9 +306,9 @@ export function DashboardPage() {
 						<div className="panel-state error-state">
 							<strong>Monitors could not be loaded</strong>
 							<p>{errorMessage(monitorsQuery.error, 'Unknown request error')}</p>
-							<button className="secondary-button" type="button" onClick={() => void monitorsQuery.refetch()}>
+							<Button variant="unstyled" className="secondary-button" type="button" onClick={() => void monitorsQuery.refetch()}>
 								Try again
-							</button>
+							</Button>
 						</div>
 					) : monitors.length === 0 ? (
 						<div className="panel-state empty-state">
@@ -302,9 +318,9 @@ export function DashboardPage() {
 							<strong>No monitors yet</strong>
 							<p>Add the first endpoint to start collecting availability checks.</p>
 							{!formOpen && (
-								<button className="primary-button" type="button" onClick={openCreateForm}>
+								<Button variant="unstyled" className="primary-button" type="button" onClick={openCreateForm}>
 									Add first site <ArrowRight />
-								</button>
+								</Button>
 							)}
 						</div>
 					) : (
@@ -326,9 +342,14 @@ export function DashboardPage() {
 												<SiteIcon key={monitor.url} monitorId={monitor.id} />
 											</span>
 											<div>
-												<button className="monitor-name-link" type="button" onClick={() => navigate(`/monitors/${monitor.id}`)}>
+												<Button
+													variant="unstyled"
+													className="monitor-name-link"
+													type="button"
+													onClick={() => navigate(`/monitors/${monitor.id}`)}
+												>
 													{monitor.name}
-												</button>
+												</Button>
 												<small title={monitor.url}>{monitor.url}</small>
 												<span className="monitor-meta">
 													{monitor.method} · expect {monitor.expectedStatus} · every {monitor.intervalSeconds / 60}m
@@ -347,11 +368,17 @@ export function DashboardPage() {
 											<small title={monitor.lastError ?? undefined}>{monitor.lastError ?? formatCheckedAt(monitor.lastCheckedAt)}</small>
 										</div>
 										<div className="row-actions" aria-label={`Actions for ${monitor.name}`}>
-											<button className="row-action row-action-labeled" type="button" onClick={() => navigate(`/monitors/${monitor.id}`)}>
+											<Button
+												variant="unstyled"
+												className="row-action row-action-labeled"
+												type="button"
+												onClick={() => navigate(`/monitors/${monitor.id}`)}
+											>
 												<History aria-hidden="true" />
 												<span>History</span>
-											</button>
-											<button
+											</Button>
+											<Button
+												variant="unstyled"
 												className="row-action row-action-labeled row-action-accent"
 												type="button"
 												onClick={() => checkMutation.mutate(monitor.id)}
@@ -360,8 +387,9 @@ export function DashboardPage() {
 											>
 												<RefreshCw className={checking ? 'is-spinning' : ''} aria-hidden="true" />
 												<span>{checking ? 'Checking' : 'Check now'}</span>
-											</button>
-											<button
+											</Button>
+											<Button
+												variant="unstyled"
 												className="row-action row-action-icon"
 												type="button"
 												onClick={() => openEditForm(monitor)}
@@ -369,8 +397,9 @@ export function DashboardPage() {
 												title="Edit monitor"
 											>
 												<Pencil aria-hidden="true" />
-											</button>
-											<button
+											</Button>
+											<Button
+												variant="unstyled"
 												className="row-action row-action-icon"
 												type="button"
 												onClick={() => updateMutation.mutate({ id: monitor.id, input: { enabled: !monitor.enabled } })}
@@ -379,8 +408,9 @@ export function DashboardPage() {
 												title={`${monitor.enabled ? 'Disable' : 'Enable'} monitor`}
 											>
 												{monitor.enabled ? <PowerOff aria-hidden="true" /> : <Power aria-hidden="true" />}
-											</button>
-											<button
+											</Button>
+											<Button
+												variant="unstyled"
 												className="row-action row-action-icon danger-action"
 												type="button"
 												onClick={() => handleDelete(monitor)}
@@ -390,7 +420,7 @@ export function DashboardPage() {
 												aria-busy={deleting}
 											>
 												<Trash2 aria-hidden="true" />
-											</button>
+											</Button>
 										</div>
 									</article>
 								);
