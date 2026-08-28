@@ -1,6 +1,7 @@
 import { applyD1Migrations, env, SELF, type D1Migration } from "cloudflare:test";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashPassword } from "../src/worker/lib/password";
+import { resolveFavicon } from "../src/worker/routes/monitors";
 
 const ADMIN_PASSWORD = "correct-horse-battery-staple";
 const VALID_MONITOR = {
@@ -64,10 +65,12 @@ describe("monitor API", () => {
 		await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
 	});
 	beforeEach(seedAdmin);
+	afterEach(() => vi.unstubAllGlobals());
 
 	it("protects every monitor endpoint, including the collection path without a trailing slash", async () => {
 		const requests = [
 			apiFetch("/api/monitors"),
+			apiFetch("/api/monitors/1/favicon"),
 			apiFetch("/api/monitors", "POST", "", VALID_MONITOR),
 			apiFetch("/api/monitors/1", "PATCH", "", { name: "Changed" }),
 			apiFetch("/api/monitors/1", "DELETE"),
@@ -78,6 +81,57 @@ describe("monitor API", () => {
 			expect(response.status).toBe(401);
 			expect(await response.json()).toEqual({ message: "Authentication required" });
 		}
+	});
+
+	it("proxies and caches a monitor favicon response", async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (await createMonitor(cookie, { url: "https://favicon-route.example.test/health" }))
+			.json<{ monitor: { id: number } }>();
+		vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+			const url = new URL(input.toString());
+			expect(url.href).toBe("https://favicon-route.example.test/favicon.ico");
+			return new Response(new Uint8Array([0, 0, 1, 0]), {
+				headers: { "Content-Type": "image/x-icon" },
+			});
+		}));
+
+		const response = await apiFetch(`/api/monitors/${created.monitor.id}/favicon`, "GET", cookie);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("Content-Type")).toBe("image/x-icon");
+		expect(response.headers.get("Cache-Control")).toBe("public, max-age=86400");
+		expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+		expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([0, 0, 1, 0]));
+	});
+
+	it("discovers a favicon declared in the website head", async () => {
+		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+			const url = new URL(input.toString());
+			if (url.pathname === "/favicon.ico") return new Response(null, { status: 404 });
+			if (url.pathname === "/") {
+				return new Response('<html><head><link rel="apple-touch-icon" href="/assets/icon.png"></head></html>', {
+					headers: { "Content-Type": "text/html; charset=utf-8" },
+				});
+			}
+			return new Response(new Uint8Array([137, 80, 78, 71]), {
+				headers: { "Content-Type": "image/png" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const favicon = await resolveFavicon("https://favicon-head.example.test/status");
+		expect(favicon?.contentType).toBe("image/png");
+		expect(new Uint8Array(favicon?.body ?? new ArrayBuffer(0))).toEqual(new Uint8Array([137, 80, 78, 71]));
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+
+	it("does not fetch favicons from private network hosts", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(resolveFavicon("http://127.0.0.1/admin")).resolves.toBeNull();
+		await expect(resolveFavicon("http://[::1]/admin")).resolves.toBeNull();
+		await expect(resolveFavicon("http://10.0.0.1/admin")).resolves.toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("creates a valid monitor and returns it in the list", async () => {

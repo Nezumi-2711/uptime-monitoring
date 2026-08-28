@@ -105,6 +105,7 @@ button { color: inherit; }
 .service-name > div { min-width: 0; }
 .service-icon { display: grid; place-items: center; flex: 0 0 auto; width: 40px; height: 40px; border: 1px solid #dedede; border-radius: 6px; color: #555; background: #fafafa; }
 .service-icon svg { width: 19px; height: 19px; }
+.service-icon img { width: 22px; height: 22px; border-radius: 4px; object-fit: contain; }
 .service-name strong, .service-name small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .service-name strong { font-size: 15px; font-weight: 500; }
 .monitor-name-link { display: block; max-width: 100%; padding: 0; overflow: hidden; border: 0; font-size: 15px; font-weight: 500; text-align: left; text-overflow: ellipsis; white-space: nowrap; background: transparent; cursor: pointer; }
@@ -222,6 +223,15 @@ button { color: inherit; }
 .uptime-legend i { width: 6px; height: 6px; border-radius: 50%; background: var(--primary-deep); }
 .uptime-legend i.legend-down { margin-left: 5px; background: #d95c5c; }
 .data-table-wrap { overflow-x: auto; }
+.recent-checks-panel { display: flex; min-height: 0; flex-direction: column; }
+.recent-checks-scroll { max-height: clamp(320px, 52vh, 556px); overflow: auto; overscroll-behavior: contain; scrollbar-color: #b8c7c0 #f4f6f5; scrollbar-gutter: stable; scrollbar-width: thin; }
+.recent-checks-scroll:focus-visible { outline: 2px solid rgb(36 180 126 / 0.45); outline-offset: -2px; }
+.recent-checks-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.recent-checks-scroll::-webkit-scrollbar-track { background: #f4f6f5; }
+.recent-checks-scroll::-webkit-scrollbar-thumb { border: 2px solid #f4f6f5; border-radius: 999px; background: #b8c7c0; }
+.recent-checks-scroll::-webkit-scrollbar-thumb:hover { background: #91a69d; }
+.recent-checks-scroll .data-table { min-width: 600px; }
+.recent-checks-scroll .data-table th { position: sticky; z-index: 1; top: 0; box-shadow: 0 1px #e5e5e5; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .data-table th { padding: 11px 16px; font-weight: 400; text-align: left; color: #888; background: #fafafa; }
 .data-table td { padding: 14px 16px; border-top: 1px solid #ededed; color: #555; white-space: nowrap; }

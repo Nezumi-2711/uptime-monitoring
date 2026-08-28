@@ -25,6 +25,218 @@ type ParseResult =
 	| { ok: false; message: string };
 
 const METHODS = new Set<MonitorMethod>(["GET", "HEAD", "POST"]);
+const FAVICON_CACHE_SECONDS = 86_400;
+const FAVICON_FETCH_TIMEOUT_MS = 5_000;
+const MAX_FAVICON_BYTES = 1024 * 1024;
+const MAX_HEAD_BYTES = 128 * 1024;
+const MAX_REDIRECTS = 3;
+
+type FaviconResult = {
+	body: ArrayBuffer;
+	contentType: string;
+};
+
+type EdgeCache = {
+	match(request: RequestInfo | URL): Promise<Response | undefined>;
+	put(request: RequestInfo | URL, response: Response): Promise<void>;
+};
+
+function isPrivateHostname(rawHostname: string): boolean {
+	const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+	if (hostname === "localhost" || hostname.endsWith(".localhost")) return true;
+
+	const ipv4 = hostname.split(".").map(Number);
+	if (ipv4.length === 4 && ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+		const [first, second] = ipv4;
+		return first === 0
+			|| first === 10
+			|| first === 127
+			|| (first === 169 && second === 254)
+			|| (first === 172 && second >= 16 && second <= 31)
+			|| (first === 192 && second === 168);
+	}
+
+	if (hostname === "::" || hostname === "::1") return true;
+	if (/^f[cd][0-9a-f]{2}(?::|$)/i.test(hostname) || /^fe[89ab][0-9a-f](?::|$)/i.test(hostname)) return true;
+	const mappedIpv4 = hostname.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+	return mappedIpv4 ? isPrivateHostname(mappedIpv4[1]) : false;
+}
+
+function isSafeRemoteUrl(url: URL) {
+	return (url.protocol === "http:" || url.protocol === "https:")
+		&& !url.username
+		&& !url.password
+		&& !isPrivateHostname(url.hostname);
+}
+
+async function readBodyLimited(response: Response, maximum: number, truncate: boolean) {
+	if (!response.body) return null;
+	const reader = response.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	let exceeded = false;
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			const remaining = maximum - total;
+			if (value.byteLength > remaining) {
+				if (truncate && remaining > 0) {
+					chunks.push(value.subarray(0, remaining));
+					total += remaining;
+				}
+				exceeded = true;
+				await reader.cancel();
+				break;
+			}
+			chunks.push(value);
+			total += value.byteLength;
+		}
+	} catch {
+		return null;
+	}
+
+	if (exceeded && !truncate) return null;
+	const body = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		body.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return body.buffer;
+}
+
+async function fetchRemote(url: URL, maximumBytes: number, truncate = false) {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), FAVICON_FETCH_TIMEOUT_MS);
+	let currentUrl = url;
+
+	try {
+		for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+			if (!isSafeRemoteUrl(currentUrl)) return null;
+			const response = await fetch(currentUrl, {
+				headers: {
+					Accept: "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,text/html;q=0.5,*/*;q=0.1",
+					"User-Agent": "Upwatch Favicon Proxy/1.0",
+				},
+				redirect: "manual",
+				signal: controller.signal,
+			});
+
+			if ([301, 302, 303, 307, 308].includes(response.status)) {
+				if (response.body) await response.body.cancel().catch(() => undefined);
+				const location = response.headers.get("Location");
+				if (!location || redirects === MAX_REDIRECTS) return null;
+				try {
+					currentUrl = new URL(location, currentUrl);
+				} catch {
+					return null;
+				}
+				continue;
+			}
+
+			if (!response.ok) {
+				if (response.body) await response.body.cancel().catch(() => undefined);
+				return null;
+			}
+
+			const declaredLength = Number(response.headers.get("Content-Length"));
+			if (!truncate && Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+				if (response.body) await response.body.cancel().catch(() => undefined);
+				return null;
+			}
+
+			const body = await readBodyLimited(response, maximumBytes, truncate);
+			if (!body) return null;
+			return { body, headers: response.headers, url: currentUrl };
+		}
+	} catch {
+		return null;
+	} finally {
+		clearTimeout(timeout);
+	}
+
+	return null;
+}
+
+function imageContentType(headers: Headers) {
+	const contentType = headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+	if (!contentType || contentType === "application/octet-stream") return "image/x-icon";
+	if (!contentType.startsWith("image/")) {
+		return null;
+	}
+	return contentType;
+}
+
+function readTagAttribute(tag: string, name: string) {
+	const attributes = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+	for (const match of tag.matchAll(attributes)) {
+		if (match[1].toLowerCase() === name) return match[2] ?? match[3] ?? match[4] ?? "";
+	}
+	return null;
+}
+
+function findFaviconUrl(html: string, pageUrl: URL) {
+	const closingHead = html.search(/<\/head\s*>/i);
+	const head = closingHead >= 0 ? html.slice(0, closingHead) : html;
+	let baseUrl = pageUrl;
+	const baseTag = head.match(/<base\b[^>]*>/i)?.[0];
+	const baseHref = baseTag ? readTagAttribute(baseTag, "href") : null;
+	if (baseHref) {
+		try {
+			const candidate = new URL(baseHref, pageUrl);
+			if (isSafeRemoteUrl(candidate)) baseUrl = candidate;
+		} catch {
+			// Keep the page URL as the base when the document declares an invalid URL.
+		}
+	}
+
+	for (const match of head.matchAll(/<link\b[^>]*>/gi)) {
+		const rel = readTagAttribute(match[0], "rel")?.toLowerCase().split(/\s+/) ?? [];
+		if (!rel.includes("icon") && !rel.includes("apple-touch-icon")) continue;
+		const href = readTagAttribute(match[0], "href");
+		if (!href) continue;
+		try {
+			const faviconUrl = new URL(href, baseUrl);
+			if (isSafeRemoteUrl(faviconUrl)) return faviconUrl;
+		} catch {
+			// Try the next icon declaration.
+		}
+	}
+	return null;
+}
+
+export async function resolveFavicon(siteUrl: string): Promise<FaviconResult | null> {
+	let site: URL;
+	try {
+		site = new URL(siteUrl);
+	} catch {
+		return null;
+	}
+	if (!isSafeRemoteUrl(site)) return null;
+
+	const origin = new URL(site.origin);
+	const defaultIcon = await fetchRemote(new URL("/favicon.ico", origin), MAX_FAVICON_BYTES);
+	if (defaultIcon && defaultIcon.body.byteLength > 0) {
+		const contentType = imageContentType(defaultIcon.headers);
+		if (contentType) return { body: defaultIcon.body, contentType };
+	}
+
+	const page = await fetchRemote(origin, MAX_HEAD_BYTES, true);
+	if (!page || page.body.byteLength === 0) return null;
+	const pageContentType = page.headers.get("Content-Type")?.toLowerCase();
+	if (pageContentType && !pageContentType.includes("text/html") && !pageContentType.includes("application/xhtml+xml")) {
+		return null;
+	}
+	const faviconUrl = findFaviconUrl(new TextDecoder().decode(page.body), page.url);
+	if (!faviconUrl) return null;
+
+	const icon = await fetchRemote(faviconUrl, MAX_FAVICON_BYTES);
+	if (!icon || icon.body.byteLength === 0) return null;
+	const contentType = imageContentType(icon.headers);
+	return contentType ? { body: icon.body, contentType } : null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -226,6 +438,44 @@ monitorRoutes.get("/:id/stats", async (context) => {
 	}));
 
 	return context.json({ windows: Object.fromEntries(results) as Record<(typeof windows)[number]["key"], StatsWindow> });
+});
+
+monitorRoutes.get("/:id/favicon", async (context) => {
+	const id = parseId(context.req.param("id"));
+	if (id === null) return context.json({ message: "Monitor not found" }, 404);
+	const [monitor] = await getDb(context.env)
+		.select({ url: monitors.url })
+		.from(monitors)
+		.where(eq(monitors.id, id))
+		.limit(1);
+	if (!monitor) return context.json({ message: "Monitor not found" }, 404);
+
+	const cacheKey = new Request(`${new URL(context.req.url).origin}/api/monitors/${id}/favicon`);
+	let cache: EdgeCache | null = null;
+	try {
+		const defaultCache = (caches as CacheStorage & { readonly default: EdgeCache }).default;
+		const cached = await defaultCache.match(cacheKey);
+		if (cached) return cached;
+		cache = defaultCache;
+	} catch {
+		// Cache API availability is best-effort, particularly in local and preview environments.
+	}
+
+	const favicon = await resolveFavicon(monitor.url);
+	if (!favicon) return context.json({ message: "No favicon" }, 404);
+
+	const response = new Response(favicon.body, {
+		headers: {
+			"Cache-Control": `public, max-age=${FAVICON_CACHE_SECONDS}`,
+			"Content-Length": String(favicon.body.byteLength),
+			"Content-Type": favicon.contentType,
+			"X-Content-Type-Options": "nosniff",
+		},
+	});
+	if (cache) {
+		context.executionCtx.waitUntil(cache.put(cacheKey, response.clone()).catch(() => undefined));
+	}
+	return response;
 });
 
 monitorRoutes.post("/", async (context) => {
