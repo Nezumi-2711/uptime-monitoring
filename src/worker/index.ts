@@ -3,7 +3,9 @@ import { csrf } from "hono/csrf";
 import { runDueChecks } from "./checks/run-due-checks";
 import authRoutes from "./routes/auth";
 import monitorRoutes from "./routes/monitors";
+import settingsRoutes from "./routes/settings";
 import { cleanupExpiredAuthRecords } from "./scheduled/cleanup";
+import { runDailyRollup } from "./scheduled/rollup";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -23,12 +25,24 @@ app.get("/api/health", async (context) => {
 
 app.route("/", authRoutes);
 app.route("/api/monitors", monitorRoutes);
+app.route("/api/settings", settingsRoutes);
 
 export default {
 	fetch: app.fetch,
-	async scheduled(controller, env) {
+	async scheduled(controller, env, ctx) {
+		if (controller.cron === "5 0 * * *") {
+			const result = await runDailyRollup(env, new Date(controller.scheduledTime));
+			console.log(JSON.stringify({
+				message: "daily rollup completed",
+				cron: controller.cron,
+				scheduledTime: controller.scheduledTime,
+				...result,
+			}));
+			return;
+		}
+
 		await cleanupExpiredAuthRecords(env);
-		const result = await runDueChecks(env);
+		const result = await runDueChecks(env, ctx);
 		console.log(
 			JSON.stringify({
 				message: "scheduled run completed",

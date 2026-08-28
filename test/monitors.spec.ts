@@ -15,6 +15,9 @@ const VALID_MONITOR = {
 async function seedAdmin() {
 	await env.DB.batch([
 		env.DB.prepare("DELETE FROM checks"),
+		env.DB.prepare("DELETE FROM incidents"),
+		env.DB.prepare("DELETE FROM monitor_daily_stats"),
+		env.DB.prepare("DELETE FROM notification_settings"),
 		env.DB.prepare("DELETE FROM monitors"),
 		env.DB.prepare("DELETE FROM login_attempts"),
 		env.DB.prepare("DELETE FROM sessions"),
@@ -80,10 +83,10 @@ describe("monitor API", () => {
 	it("creates a valid monitor and returns it in the list", async () => {
 		const cookie = await authenticatedCookie();
 		const response = await createMonitor(cookie);
-		const created = await response.json<{ monitor: { id: number; name: string; enabled: boolean } }>();
+		const created = await response.json<{ monitor: { id: number; name: string; enabled: boolean; alertsEnabled: boolean } }>();
 
 		expect(response.status).toBe(200);
-		expect(created.monitor).toMatchObject({ name: "Example", enabled: true });
+		expect(created.monitor).toMatchObject({ name: "Example", enabled: true, alertsEnabled: true });
 
 		const listResponse = await apiFetch("/api/monitors", "GET", cookie);
 		const list = await listResponse.json<{ monitors: Array<{ id: number; url: string }> }>();
@@ -115,6 +118,52 @@ describe("monitor API", () => {
 			name: "Renamed endpoint",
 			url: "https://example.com/health",
 			enabled: false,
+		});
+	});
+
+	it("returns detail, checks, incidents, and raw stats", async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (await createMonitor(cookie)).json<{ monitor: { id: number } }>();
+		const id = created.monitor.id;
+		const now = Date.now();
+		await env.DB.batch([
+			env.DB.prepare("INSERT INTO checks (monitor_id, ok, status_code, latency_ms, checked_at) VALUES (?, 1, 200, 100, ?)").bind(id, now - 2000),
+			env.DB.prepare("INSERT INTO checks (monitor_id, ok, status_code, latency_ms, checked_at) VALUES (?, 0, 500, 300, ?)").bind(id, now - 1000),
+			env.DB.prepare("INSERT INTO incidents (monitor_id, started_at, start_status_code, start_error, created_at, updated_at) VALUES (?, ?, 500, 'Down', ?, ?)").bind(id, now - 1000, now - 1000, now - 1000),
+		]);
+
+		const [detail, checksResponse, incidentsResponse, statsResponse] = await Promise.all([
+			apiFetch(`/api/monitors/${id}`, "GET", cookie),
+			apiFetch(`/api/monitors/${id}/checks`, "GET", cookie),
+			apiFetch(`/api/monitors/${id}/incidents`, "GET", cookie),
+			apiFetch(`/api/monitors/${id}/stats`, "GET", cookie),
+		]);
+		expect((await detail.json<{ monitor: { id: number } }>()).monitor.id).toBe(id);
+		expect((await checksResponse.json<{ checks: unknown[] }>()).checks).toHaveLength(2);
+		expect((await incidentsResponse.json<{ incidents: unknown[] }>()).incidents).toHaveLength(1);
+		const stats = await statsResponse.json<{ windows: { "24h": { uptimePct: number; totalChecks: number; upChecks: number; avgLatencyMs: number; incidentCount: number } } }>();
+		expect(stats.windows["24h"]).toEqual({ uptimePct: 50, totalChecks: 2, upChecks: 1, avgLatencyMs: 200, incidentCount: 1 });
+	});
+
+	it("combines daily rollups with the current partial day for long-range stats", async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (await createMonitor(cookie)).json<{ monitor: { id: number } }>();
+		const id = created.monitor.id;
+		const now = new Date();
+		const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+		await env.DB.batch([
+			env.DB.prepare("INSERT INTO monitor_daily_stats (monitor_id, day, total_checks, up_checks, avg_latency_ms, min_latency_ms, max_latency_ms) VALUES (?, ?, 8, 6, 100, 50, 150)").bind(id, today - 24 * 60 * 60 * 1000),
+			env.DB.prepare("INSERT INTO checks (monitor_id, ok, status_code, latency_ms, checked_at) VALUES (?, 1, 200, 200, ?)").bind(id, today + 1000),
+			env.DB.prepare("INSERT INTO checks (monitor_id, ok, status_code, latency_ms, checked_at) VALUES (?, 1, 200, 200, ?)").bind(id, today + 2000),
+		]);
+
+		const response = await apiFetch(`/api/monitors/${id}/stats`, "GET", cookie);
+		const stats = await response.json<{ windows: { "30d": { uptimePct: number; totalChecks: number; upChecks: number; avgLatencyMs: number } } }>();
+		expect(stats.windows["30d"]).toMatchObject({
+			uptimePct: 80,
+			totalChecks: 10,
+			upChecks: 8,
+			avgLatencyMs: 120,
 		});
 	});
 

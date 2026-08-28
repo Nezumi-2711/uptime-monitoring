@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { ArrowRight, Database, RefreshCw, Zap } from "lucide-react";
 import type { Monitor, MonitorInput, MonitorMethod } from "../api/monitors";
 import { useLogoutMutation } from "../queries/auth";
+import { navigate } from "../lib/router";
 import {
 	useCreateMonitorMutation,
 	useDeleteMonitorMutation,
@@ -70,6 +71,7 @@ export function DashboardPage() {
 			intervalSeconds: monitor.intervalSeconds,
 			timeoutMs: monitor.timeoutMs,
 			enabled: monitor.enabled,
+			alertsEnabled: monitor.alertsEnabled,
 		});
 		setFormOpen(true);
 	}
@@ -106,6 +108,7 @@ export function DashboardPage() {
 					</a>
 					<div className="nav-actions">
 						<span className="header-context">Production monitors</span>
+						<button className="nav-auth" type="button" onClick={() => navigate("/settings")}>Settings</button>
 						<button className="nav-auth" type="button" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
 							{logoutMutation.isPending ? "Signing out…" : "Sign out"}
 						</button>
@@ -149,7 +152,8 @@ export function DashboardPage() {
 							<label className="field"><span>Interval</span><select value={form.intervalSeconds} onChange={(event) => setForm({ ...form, intervalSeconds: Number(event.target.value) })}><option value="300">5 minutes</option><option value="900">15 minutes</option><option value="1800">30 minutes</option><option value="3600">1 hour</option><option value="86400">24 hours</option></select></label>
 							<label className="field"><span>Timeout (ms)</span><input type="number" min="1000" max="30000" step="1000" value={form.timeoutMs} onChange={(event) => setForm({ ...form, timeoutMs: event.target.valueAsNumber })} required /></label>
 							<label className="toggle-field"><input type="checkbox" checked={form.enabled ?? true} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} /><span>Enable scheduled checks</span></label>
-							<div className="form-actions">
+							<label className="toggle-field"><input type="checkbox" checked={form.alertsEnabled ?? true} onChange={(event) => setForm({ ...form, alertsEnabled: event.target.checked })} /><span>Enable incident alerts</span></label>
+							<div className="form-actions compact-actions">
 								<button className="secondary-button" type="button" onClick={closeForm}>Cancel</button>
 								<button className="primary-button" type="submit" disabled={formMutation.isPending}>{formMutation.isPending ? "Saving…" : editing ? "Save changes" : "Add monitor"}</button>
 							</div>
@@ -182,9 +186,9 @@ export function DashboardPage() {
 								const toggling = updateMutation.isPending && updateMutation.variables?.id === monitor.id;
 								return (
 									<article className={`service-row ${monitor.enabled ? "" : "is-disabled"}`} key={monitor.id}>
-										<div className="service-name"><span className="service-icon"><Database /></span><div><strong>{monitor.name}</strong><small title={monitor.url}>{monitor.url}</small><span className="monitor-meta">{monitor.method} · expect {monitor.expectedStatus} · every {monitor.intervalSeconds / 60}m</span></div></div>
+										<div className="service-name"><span className="service-icon"><Database /></span><div><button className="monitor-name-link" type="button" onClick={() => navigate(`/monitors/${monitor.id}`)}>{monitor.name}</button><small title={monitor.url}>{monitor.url}</small><span className="monitor-meta">{monitor.method} · expect {monitor.expectedStatus} · every {monitor.intervalSeconds / 60}m</span></div></div>
 										<div className="monitor-result"><span className={`row-status ${checking ? "checking" : status.className}`}><i />{checking ? "Checking" : status.label}</span><code>{monitor.lastStatusCode === null ? "—" : `HTTP ${monitor.lastStatusCode}`} · {monitor.lastLatencyMs === null ? "—" : `${monitor.lastLatencyMs} ms`}</code><small title={monitor.lastError ?? undefined}>{monitor.lastError ?? formatCheckedAt(monitor.lastCheckedAt)}</small></div>
-										<div className="row-actions"><button type="button" onClick={() => checkMutation.mutate(monitor.id)} disabled={checking}>Check now</button><button type="button" onClick={() => openEditForm(monitor)}>Edit</button><button type="button" onClick={() => updateMutation.mutate({ id: monitor.id, input: { enabled: !monitor.enabled } })} disabled={toggling}>{monitor.enabled ? "Disable" : "Enable"}</button><button className="danger-action" type="button" onClick={() => handleDelete(monitor)} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button></div>
+										<div className="row-actions"><button type="button" onClick={() => navigate(`/monitors/${monitor.id}`)}>History</button><button type="button" onClick={() => checkMutation.mutate(monitor.id)} disabled={checking}>Check now</button><button type="button" onClick={() => openEditForm(monitor)}>Edit</button><button type="button" onClick={() => updateMutation.mutate({ id: monitor.id, input: { enabled: !monitor.enabled } })} disabled={toggling}>{monitor.enabled ? "Disable" : "Enable"}</button><button className="danger-action" type="button" onClick={() => handleDelete(monitor)} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button></div>
 									</article>
 								);
 							})}

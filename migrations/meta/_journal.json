@@ -22,6 +22,13 @@
       "when": 1787839000288,
       "tag": "0002_lean_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787887541718,
+      "tag": "0003_colorful_kingpin",
+      "breakpoints": true
     }
   ]
 }

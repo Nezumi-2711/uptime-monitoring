@@ -11,6 +11,7 @@ export type Monitor = {
 	intervalSeconds: number;
 	timeoutMs: number;
 	enabled: boolean;
+	alertsEnabled: boolean;
 	lastOk: boolean | null;
 	lastStatusCode: number | null;
 	lastLatencyMs: number | null;
@@ -28,6 +29,7 @@ export type MonitorInput = {
 	intervalSeconds: number;
 	timeoutMs: number;
 	enabled?: boolean;
+	alertsEnabled?: boolean;
 };
 
 export type CheckResult = {
@@ -37,11 +39,57 @@ export type CheckResult = {
 	error: string | null;
 };
 
+export type Check = CheckResult & {
+	id: number;
+	monitorId: number;
+	checkedAt: string;
+};
+
+export type Incident = {
+	id: number;
+	monitorId: number;
+	startedAt: string;
+	resolvedAt: string | null;
+	startStatusCode: number | null;
+	startError: string | null;
+	durationMs: number | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type StatsWindow = {
+	uptimePct: number | null;
+	totalChecks: number;
+	upChecks: number;
+	avgLatencyMs: number | null;
+	incidentCount: number;
+};
+
+export type MonitorStats = {
+	windows: Record<"24h" | "7d" | "30d" | "90d", StatsWindow>;
+};
+
 export function listMonitors(signal?: AbortSignal) {
 	return getJson<{ monitors: Monitor[] }>("/api/monitors", {
 		signal,
 		credentials: "same-origin",
 	});
+}
+
+export function getMonitor(id: number, signal?: AbortSignal) {
+	return getJson<{ monitor: Monitor }>(`/api/monitors/${id}`, { signal, credentials: "same-origin" });
+}
+
+export function listChecks(id: number, limit = 100, signal?: AbortSignal) {
+	return getJson<{ checks: Check[] }>(`/api/monitors/${id}/checks?limit=${limit}`, { signal, credentials: "same-origin" });
+}
+
+export function getMonitorStats(id: number, signal?: AbortSignal) {
+	return getJson<MonitorStats>(`/api/monitors/${id}/stats`, { signal, credentials: "same-origin" });
+}
+
+export function listIncidents(id: number, limit = 50, signal?: AbortSignal) {
+	return getJson<{ incidents: Incident[] }>(`/api/monitors/${id}/incidents?limit=${limit}`, { signal, credentials: "same-origin" });
 }
 
 export function createMonitor(input: MonitorInput) {

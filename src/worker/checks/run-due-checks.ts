@@ -1,6 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { checks, monitors } from "../db/schema";
+import { monitors } from "../db/schema";
+import { sendIncidentAlert } from "../notifications/webhook";
+import { buildResultStatements } from "./persist-result";
 import { runCheck } from "./run-check";
 
 const MAX_MONITORS_PER_RUN = 40;
@@ -12,7 +14,10 @@ export type DueCheckSummary = {
 	down: number;
 };
 
-export async function runDueChecks(env: Env): Promise<DueCheckSummary> {
+export async function runDueChecks(
+	env: Env,
+	ctx?: Pick<ExecutionContext, "waitUntil">,
+): Promise<DueCheckSummary> {
 	const db = getDb(env);
 	const now = Date.now();
 	const due = await db
@@ -47,26 +52,29 @@ export async function runDueChecks(env: Env): Promise<DueCheckSummary> {
 		completed.push(...results);
 	}
 
-	const statements = completed.flatMap(({ monitor, result, checkedAt }) => [
-		db.insert(checks).values({
-			monitorId: monitor.id,
-			ok: result.ok,
-			statusCode: result.statusCode,
-			latencyMs: result.latencyMs,
-			error: result.error,
-			checkedAt,
-		}),
-		db.update(monitors).set({
-			lastOk: result.ok,
-			lastStatusCode: result.statusCode,
-			lastLatencyMs: result.latencyMs,
-			lastError: result.error,
-			lastCheckedAt: checkedAt,
-			updatedAt: checkedAt,
-		}).where(eq(monitors.id, monitor.id)),
-	]);
+	const persisted = completed.map(({ monitor, result, checkedAt }) => ({
+		monitor,
+		result,
+		checkedAt,
+		...buildResultStatements(db, monitor, result, checkedAt),
+	}));
+	const statements = persisted.flatMap((item) => item.statements);
 
 	await db.batch(statements as [typeof statements[number], ...typeof statements]);
+
+	const notifications = persisted.flatMap((item) => item.transition === null ? [] : [
+		sendIncidentAlert(env, {
+			monitor: item.monitor,
+			kind: item.transition,
+			result: item.result,
+			at: item.checkedAt,
+		}),
+	]);
+	if (notifications.length > 0) {
+		const notificationWork = Promise.all(notifications).then(() => undefined);
+		if (ctx) ctx.waitUntil(notificationWork);
+		else await notificationWork;
+	}
 
 	const up = completed.reduce((count, item) => count + Number(item.result.ok), 0);
 	return { checked: completed.length, up, down: completed.length - up };

@@ -1,8 +1,16 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const adminCredentials = sqliteTable("admin_credentials", {
 	id: integer("id").primaryKey(),
 	passwordHash: text("password_hash").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const notificationSettings = sqliteTable("notification_settings", {
+	id: integer("id").primaryKey(),
+	webhookUrl: text("webhook_url"),
+	webhookEnabled: integer("webhook_enabled", { mode: "boolean" }).notNull().default(false),
 	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 	updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
@@ -39,6 +47,7 @@ export const monitors = sqliteTable(
 		intervalSeconds: integer("interval_seconds").notNull().default(300),
 		timeoutMs: integer("timeout_ms").notNull().default(10_000),
 		enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+		alertsEnabled: integer("alerts_enabled", { mode: "boolean" }).notNull().default(true),
 		lastOk: integer("last_ok", { mode: "boolean" }),
 		lastStatusCode: integer("last_status_code"),
 		lastLatencyMs: integer("last_latency_ms"),
@@ -73,5 +82,44 @@ export const checks = sqliteTable(
 			table.monitorId,
 			table.checkedAt,
 		),
+	],
+);
+
+export const incidents = sqliteTable(
+	"incidents",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		monitorId: integer("monitor_id")
+			.notNull()
+			.references(() => monitors.id, { onDelete: "cascade" }),
+		startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+		resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+		startStatusCode: integer("start_status_code"),
+		startError: text("start_error"),
+		durationMs: integer("duration_ms"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => [
+		index("incidents_monitor_id_started_at_idx").on(table.monitorId, table.startedAt),
+	],
+);
+
+export const monitorDailyStats = sqliteTable(
+	"monitor_daily_stats",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		monitorId: integer("monitor_id")
+			.notNull()
+			.references(() => monitors.id, { onDelete: "cascade" }),
+		day: integer("day", { mode: "timestamp_ms" }).notNull(),
+		totalChecks: integer("total_checks").notNull(),
+		upChecks: integer("up_checks").notNull(),
+		avgLatencyMs: integer("avg_latency_ms"),
+		minLatencyMs: integer("min_latency_ms"),
+		maxLatencyMs: integer("max_latency_ms"),
+	},
+	(table) => [
+		uniqueIndex("monitor_daily_stats_monitor_id_day_uidx").on(table.monitorId, table.day),
 	],
 );
