@@ -4,6 +4,7 @@ import { runDueChecks } from "./checks/run-due-checks";
 import authRoutes from "./routes/auth";
 import monitorRoutes from "./routes/monitors";
 import settingsRoutes from "./routes/settings";
+import statusRoutes from "./routes/status";
 import { cleanupExpiredAuthRecords } from "./scheduled/cleanup";
 import { runDailyRollup } from "./scheduled/rollup";
 
@@ -26,6 +27,7 @@ app.get("/api/health", async (context) => {
 app.route("/", authRoutes);
 app.route("/api/monitors", monitorRoutes);
 app.route("/api/settings", settingsRoutes);
+app.route("/api/status", statusRoutes);
 
 export default {
 	fetch: app.fetch,

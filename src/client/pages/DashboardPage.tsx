@@ -103,12 +103,13 @@ export function DashboardPage() {
 		<div className="dashboard-shell">
 			<header className="dashboard-header">
 				<div className="dashboard-header-inner">
-					<a className="brand" href="/" aria-label="Upwatch dashboard">
+					<a className="brand" href="/dashboard" aria-label="Upwatch dashboard">
 						<Zap className="brand-mark" fill="currentColor" />
 						<span>upwatch</span>
 					</a>
 					<div className="nav-actions">
 						<span className="header-context">Production monitors</span>
+						<a className="nav-auth" href="/">View status page</a>
 						<button className="nav-auth" type="button" onClick={() => navigate("/settings")}>Settings</button>
 						<button className="nav-auth" type="button" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
 							{logoutMutation.isPending ? "Signing out…" : "Sign out"}

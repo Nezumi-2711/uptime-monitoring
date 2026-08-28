@@ -9,14 +9,14 @@ export function LoginPage() {
 	const loginMutation = useLoginMutation();
 
 	useEffect(() => {
-		if (sessionQuery.data?.authenticated) navigate("/", { replace: true });
+		if (sessionQuery.data?.authenticated) navigate("/dashboard", { replace: true });
 	}, [sessionQuery.data?.authenticated]);
 
 	function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		loginMutation.mutate(
 			{ password },
-			{ onSuccess: () => navigate("/", { replace: true }) },
+			{ onSuccess: () => navigate("/dashboard", { replace: true }) },
 		);
 	}
 

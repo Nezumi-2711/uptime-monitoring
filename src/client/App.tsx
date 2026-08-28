@@ -4,9 +4,11 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MonitorDetailPage } from "./pages/MonitorDetailPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { StatusPage } from "./pages/StatusPage";
 
 function App() {
 	const pathname = usePathname();
+	if (pathname === "/") return <StatusPage />;
 	if (pathname === "/login") return <LoginPage />;
 	const monitorMatch = pathname.match(/^\/monitors\/(\d+)\/?$/);
 	const page = monitorMatch

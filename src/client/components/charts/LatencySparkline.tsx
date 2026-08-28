@@ -17,7 +17,7 @@ type LatencyDatum = {
 	ok: boolean;
 };
 
-function LatencyTooltip({ active, payload }: TooltipContentProps<number, string>) {
+function LatencyTooltip({ active, payload }: TooltipContentProps) {
 	if (!active || !payload.length) return null;
 
 	const point = payload[0].payload as LatencyDatum;

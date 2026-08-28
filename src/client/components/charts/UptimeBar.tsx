@@ -18,7 +18,7 @@ type UptimeDatum = {
 	id: number;
 };
 
-function UptimeTooltip({ active, payload }: TooltipContentProps<number, string>) {
+function UptimeTooltip({ active, payload }: TooltipContentProps) {
 	if (!active || !payload.length) return null;
 
 	const point = payload[0].payload as UptimeDatum;

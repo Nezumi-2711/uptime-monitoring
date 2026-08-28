@@ -44,17 +44,17 @@ export function MonitorDetailPage({ id }: { id: number }) {
 
 	if (monitorQuery.isPending) return <div className="full-page-loading"><RefreshCw className="loading-mark" /><p>Loading monitor history…</p></div>;
 	if (monitorQuery.isError || !monitor) return (
-		<div className="detail-error"><strong>Monitor not found</strong><p>The requested monitor could not be loaded.</p><button className="secondary-button" onClick={() => navigate("/")}>Return to dashboard</button></div>
+		<div className="detail-error"><strong>Monitor not found</strong><p>The requested monitor could not be loaded.</p><button className="secondary-button" onClick={() => navigate("/dashboard")}>Return to dashboard</button></div>
 	);
 
 	return (
 		<div className="dashboard-shell">
 			<header className="dashboard-header"><div className="dashboard-header-inner">
-				<button className="brand brand-button" type="button" onClick={() => navigate("/")}><Zap className="brand-mark" fill="currentColor" /><span>upwatch</span></button>
+				<button className="brand brand-button" type="button" onClick={() => navigate("/dashboard")}><Zap className="brand-mark" fill="currentColor" /><span>upwatch</span></button>
 				<div className="nav-actions"><button className="nav-auth" onClick={() => navigate("/settings")}>Settings</button><button className="nav-auth" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>Sign out</button></div>
 			</div></header>
 			<main className="dashboard-main detail-main">
-				<button className="back-link" type="button" onClick={() => navigate("/")}><ArrowLeft /> All monitors</button>
+				<button className="back-link" type="button" onClick={() => navigate("/dashboard")}><ArrowLeft /> All monitors</button>
 				<section className="detail-hero">
 					<div className="detail-title"><span className={`status-orb ${status.className}`} /><div><p className="overline">Monitor #{monitor.id}</p><h1>{monitor.name}</h1><a href={monitor.url} target="_blank" rel="noreferrer">{monitor.url}<ExternalLink /></a></div></div>
 					<div className="detail-actions"><span className={`row-status ${status.className}`}><i />{status.label}</span>{!monitor.alertsEnabled && <span className="muted-alert"><BellOff /> Alerts muted</span>}<button className="primary-button" type="button" onClick={() => checkMutation.mutate(id)} disabled={checkMutation.isPending}>{checkMutation.isPending ? "Checking…" : "Check now"}</button></div>
