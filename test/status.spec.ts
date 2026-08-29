@@ -10,6 +10,7 @@ type PublicStatusResponse = {
 		id: number;
 		name: string;
 		status: 'up' | 'down' | 'unknown';
+		message: string | null;
 		lastCheckedAt: string | null;
 		uptime90d: number | null;
 		history: Array<{ day: number; uptimePct: number | null }>;
@@ -94,6 +95,7 @@ describe('public status API', () => {
 		expect(body.services[0]).toMatchObject({
 			name: 'Public API',
 			status: 'up',
+			message: null,
 			uptime90d: null,
 			history: [],
 		});

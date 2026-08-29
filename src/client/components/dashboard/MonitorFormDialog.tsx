@@ -17,7 +17,7 @@ export const DEFAULT_MONITOR_INPUT: MonitorInput = {
 	enabled: true,
 };
 
-const INTERVAL_OPTIONS = [
+export const INTERVAL_OPTIONS = [
 	{ value: '300', label: '5 minutes' },
 	{ value: '900', label: '15 minutes' },
 	{ value: '1800', label: '30 minutes' },

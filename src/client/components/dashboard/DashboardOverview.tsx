@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { useMonitorsQuery } from '../../queries/monitors';
 
 type DashboardOverviewProps = {
@@ -28,21 +29,21 @@ export function DashboardOverview({ onAddMonitor }: DashboardOverviewProps) {
 			</section>
 
 			<section className="metric-grid" aria-label="Monitor summary">
-				<div className="metric-card">
+				<Card className="metric-card">
 					<p>Total monitors</p>
 					<strong>{monitors.length}</strong>
 					<span>{monitors.filter((monitor) => monitor.enabled).length} enabled</span>
-				</div>
-				<div className="metric-card">
+				</Card>
+				<Card className="metric-card">
 					<p>Currently up</p>
 					<strong>{up}</strong>
 					<span>Latest checks succeeded</span>
-				</div>
-				<div className="metric-card">
+				</Card>
+				<Card className="metric-card">
 					<p>Currently down</p>
 					<strong>{down}</strong>
 					<span>Needs attention</span>
-				</div>
+				</Card>
 			</section>
 		</>
 	);

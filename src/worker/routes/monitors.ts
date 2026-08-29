@@ -1,10 +1,12 @@
 import { and, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { generateIncidentMessage } from '../ai/incident-message';
 import { buildResultStatements } from '../checks/persist-result';
 import { runCheck } from '../checks/run-check';
 import { getDb } from '../db/client';
 import { checks, incidents, monitors } from '../db/schema';
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
+import { isSafeRemoteUrl } from '../lib/safe-url';
 import { sendIncidentAlert } from '../notifications/webhook';
 
 type MonitorMethod = 'GET' | 'HEAD' | 'POST';
@@ -38,36 +40,6 @@ type EdgeCache = {
 	match(request: RequestInfo | URL): Promise<Response | undefined>;
 	put(request: RequestInfo | URL, response: Response): Promise<void>;
 };
-
-function isPrivateHostname(rawHostname: string): boolean {
-	const hostname = rawHostname
-		.toLowerCase()
-		.replace(/^\[|\]$/g, '')
-		.replace(/\.$/, '');
-	if (hostname === 'localhost' || hostname.endsWith('.localhost')) return true;
-
-	const ipv4 = hostname.split('.').map(Number);
-	if (ipv4.length === 4 && ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
-		const [first, second] = ipv4;
-		return (
-			first === 0 ||
-			first === 10 ||
-			first === 127 ||
-			(first === 169 && second === 254) ||
-			(first === 172 && second >= 16 && second <= 31) ||
-			(first === 192 && second === 168)
-		);
-	}
-
-	if (hostname === '::' || hostname === '::1') return true;
-	if (/^f[cd][0-9a-f]{2}(?::|$)/i.test(hostname) || /^fe[89ab][0-9a-f](?::|$)/i.test(hostname)) return true;
-	const mappedIpv4 = hostname.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-	return mappedIpv4 ? isPrivateHostname(mappedIpv4[1]) : false;
-}
-
-function isSafeRemoteUrl(url: URL) {
-	return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password && !isPrivateHostname(url.hostname);
-}
 
 async function readBodyLimited(response: Response, maximum: number, truncate: boolean) {
 	if (!response.body) return null;
@@ -558,6 +530,9 @@ monitorRoutes.post('/:id/check', async (context) => {
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 	if (transition) {
 		await sendIncidentAlert(context.env, { monitor, kind: transition, result, at: checkedAt });
+		if (transition === 'opened') {
+			await generateIncidentMessage(context.env, { monitor, result });
+		}
 	}
 	const [updated] = await db.select().from(monitors).where(eq(monitors.id, monitor.id)).limit(1);
 

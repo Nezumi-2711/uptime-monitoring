@@ -52,6 +52,7 @@ export type Incident = {
 	resolvedAt: string | null;
 	startStatusCode: number | null;
 	startError: string | null;
+	aiMessage: string | null;
 	durationMs: number | null;
 	createdAt: string;
 	updatedAt: string;

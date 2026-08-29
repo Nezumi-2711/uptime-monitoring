@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Activity, CircleCheck, Database, RefreshCw, TriangleAlert, Zap } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import type { PublicOverallStatus, PublicServiceStatus } from '../api/status';
 import { SiteIcon } from '../components/SiteIcon';
 import { StatusHistoryBar } from '../components/StatusHistoryBar';
@@ -53,6 +54,7 @@ export function StatusPage() {
 	const sessionQuery = useSessionQuery();
 	const [now, setNow] = useState(Date.now);
 	const status = statusQuery.data;
+	const activeIncidents = status?.services.filter((service) => service.message) ?? [];
 
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(Date.now()), 5_000);
@@ -99,16 +101,18 @@ export function StatusPage() {
 						</div>
 					</div>
 				) : statusQuery.isError || !status ? (
-					<section className="status-panel-state status-error-state">
-						<span>
+					<Empty variant="error" className="mt-[42px] min-h-[280px] place-content-center p-12">
+						<EmptyMedia variant="icon">
 							<TriangleAlert />
-						</span>
-						<strong>Status could not be loaded</strong>
-						<p>{errorMessage(statusQuery.error)}</p>
-						<Button variant="unstyled" className="secondary-button" type="button" onClick={() => void statusQuery.refetch()}>
-							Try again
-						</Button>
-					</section>
+						</EmptyMedia>
+						<EmptyTitle>Status could not be loaded</EmptyTitle>
+						<EmptyDescription>{errorMessage(statusQuery.error)}</EmptyDescription>
+						<EmptyContent>
+							<Button variant="unstyled" className="secondary-button" type="button" onClick={() => void statusQuery.refetch()}>
+								Try again
+							</Button>
+						</EmptyContent>
+					</Empty>
 				) : (
 					<>
 						<section className={`status-banner ${status.overall}`} aria-live="polite">
@@ -121,6 +125,45 @@ export function StatusPage() {
 							</div>
 							<time dateTime={new Date(status.updatedAt).toISOString()}>{relativeUpdate(status.updatedAt, now)}</time>
 						</section>
+
+						{activeIncidents.length > 0 && (
+							<section className="active-incidents" aria-labelledby="active-incidents-title" aria-live="polite">
+								<header className="active-incidents-header">
+									<div className="active-incidents-heading">
+										<span className="active-incidents-icon">
+											<TriangleAlert aria-hidden="true" />
+										</span>
+										<div>
+											<p>Active incident</p>
+											<h2 id="active-incidents-title">We’re working to restore service</h2>
+										</div>
+									</div>
+									<span className="active-incidents-count">
+										{activeIncidents.length} {activeIncidents.length === 1 ? 'service' : 'services'} affected
+									</span>
+								</header>
+
+								<div className="active-incident-list">
+									{activeIncidents.map((service) => (
+										<article className="active-incident-row" key={service.id}>
+											<div className="active-incident-service">
+												<span className="active-incident-service-icon">
+													<SiteIcon monitorId={service.id} favicon="public" />
+												</span>
+												<div>
+													<strong>{service.name}</strong>
+													<span>Service disruption</span>
+												</div>
+											</div>
+											<p>{service.message}</p>
+											<span className="active-incident-state">
+												<i /> Investigating
+											</span>
+										</article>
+									))}
+								</div>
+							</section>
+						)}
 
 						<section className="public-services-panel" aria-labelledby="public-services-title">
 							<div className="public-services-heading">
@@ -141,13 +184,13 @@ export function StatusPage() {
 							</div>
 
 							{status.services.length === 0 ? (
-								<div className="status-panel-state">
-									<span>
+								<Empty className="min-h-[280px] place-content-center p-12">
+									<EmptyMedia variant="icon">
 										<Database />
-									</span>
-									<strong>No public services yet</strong>
-									<p>Service health will appear here after monitoring is enabled.</p>
-								</div>
+									</EmptyMedia>
+									<EmptyTitle>No public services yet</EmptyTitle>
+									<EmptyDescription>Service health will appear here after monitoring is enabled.</EmptyDescription>
+								</Empty>
 							) : (
 								<div className="public-service-list">
 									{status.services.map((service) => {

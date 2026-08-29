@@ -1,4 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { generateIncidentMessage } from '../ai/incident-message';
 import { getDb } from '../db/client';
 import { monitors } from '../db/schema';
 import { sendIncidentAlert } from '../notifications/webhook';
@@ -6,6 +7,7 @@ import { buildResultStatements } from './persist-result';
 import { runCheck } from './run-check';
 
 const MAX_MONITORS_PER_RUN = 40;
+const MAX_AI_MESSAGES_PER_RUN = 10;
 const CONCURRENCY = 10;
 
 export type DueCheckSummary = {
@@ -59,18 +61,23 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 
-	const notifications = persisted.flatMap((item) =>
-		item.transition === null
-			? []
-			: [
-					sendIncidentAlert(env, {
-						monitor: item.monitor,
-						kind: item.transition,
-						result: item.result,
-						at: item.checkedAt,
-					}),
-				],
-	);
+	let aiMessagesQueued = 0;
+	const notifications = persisted.flatMap((item) => {
+		if (item.transition === null) return [];
+		const work: Promise<unknown>[] = [
+			sendIncidentAlert(env, {
+				monitor: item.monitor,
+				kind: item.transition,
+				result: item.result,
+				at: item.checkedAt,
+			}),
+		];
+		if (item.transition === 'opened' && item.monitor.alertsEnabled && aiMessagesQueued < MAX_AI_MESSAGES_PER_RUN) {
+			aiMessagesQueued += 1;
+			work.push(generateIncidentMessage(env, { monitor: item.monitor, result: item.result }));
+		}
+		return work;
+	});
 	if (notifications.length > 0) {
 		const notificationWork = Promise.all(notifications).then(() => undefined);
 		if (ctx) ctx.waitUntil(notificationWork);

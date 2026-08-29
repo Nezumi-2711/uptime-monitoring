@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { navigate } from '../lib/router';
 import { useLoginMutation, useSessionQuery } from '../queries/auth';
@@ -28,38 +29,40 @@ export function LoginPage() {
 				<span>upwatch</span>
 			</div>
 
-			<section className="auth-card" aria-labelledby="login-title">
-				<div className="auth-heading">
-					<p>Admin access</p>
-					<h1 id="login-title">Sign in to Upwatch</h1>
-					<span>Enter the admin password to manage your monitors.</span>
-				</div>
-
-				<form className="auth-form" onSubmit={handleSubmit}>
-					<div className="auth-field">
-						<label htmlFor="password">Password</label>
-						<Input
-							id="password"
-							type="password"
-							autoComplete="current-password"
-							value={password}
-							onChange={(event) => setPassword(event.target.value)}
-							minLength={8}
-							required
-						/>
+			<Card asChild>
+				<section className="auth-card" aria-labelledby="login-title">
+					<div className="auth-heading">
+						<p>Admin access</p>
+						<h1 id="login-title">Sign in to Upwatch</h1>
+						<span>Enter the admin password to manage your monitors.</span>
 					</div>
 
-					{loginMutation.isError && (
-						<p className="auth-error" role="alert">
-							{errorMessage}
-						</p>
-					)}
+					<form className="auth-form" onSubmit={handleSubmit}>
+						<div className="auth-field">
+							<label htmlFor="password">Password</label>
+							<Input
+								id="password"
+								type="password"
+								autoComplete="current-password"
+								value={password}
+								onChange={(event) => setPassword(event.target.value)}
+								minLength={8}
+								required
+							/>
+						</div>
 
-					<Button variant="unstyled" className="auth-submit" type="submit" disabled={loginMutation.isPending}>
-						{loginMutation.isPending ? 'Signing in…' : 'Sign in'}
-					</Button>
-				</form>
-			</section>
+						{loginMutation.isError && (
+							<p className="auth-error" role="alert">
+								{errorMessage}
+							</p>
+						)}
+
+						<Button variant="unstyled" className="auth-submit" type="submit" disabled={loginMutation.isPending}>
+							{loginMutation.isPending ? 'Signing in…' : 'Sign in'}
+						</Button>
+					</form>
+				</section>
+			</Card>
 
 			<p className="auth-footnote">Protected by an encrypted, seven-day session.</p>
 		</main>

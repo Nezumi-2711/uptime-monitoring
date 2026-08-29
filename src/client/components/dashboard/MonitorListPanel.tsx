@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ArrowRight, Database, History, Pencil, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Database, History, Pencil, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import type { Monitor } from '../../api/monitors';
 import { navigate } from '../../lib/router';
 import { useDeleteMonitorMutation, useMonitorsQuery, useRunCheckMutation, useUpdateMonitorMutation } from '../../queries/monitors';
@@ -83,26 +84,33 @@ export function MonitorListPanel({ formOpen, onAddMonitor, onEdit }: MonitorList
 					))}
 				</div>
 			) : monitorsQuery.isError ? (
-				<div className="panel-state error-state">
-					<strong>Monitors could not be loaded</strong>
-					<p>{errorMessage(monitorsQuery.error, 'Unknown request error')}</p>
-					<Button variant="unstyled" className="secondary-button" type="button" onClick={() => void monitorsQuery.refetch()}>
-						Try again
-					</Button>
-				</div>
-			) : monitors.length === 0 ? (
-				<div className="panel-state empty-state">
-					<span className="empty-icon">
-						<Database />
-					</span>
-					<strong>No monitors yet</strong>
-					<p>Add the first endpoint to start collecting availability checks.</p>
-					{!formOpen && (
-						<Button variant="unstyled" className="primary-button" type="button" onClick={onAddMonitor}>
-							Add first site <ArrowRight />
+				<Empty variant="error">
+					<EmptyMedia variant="icon">
+						<AlertTriangle />
+					</EmptyMedia>
+					<EmptyTitle>Monitors could not be loaded</EmptyTitle>
+					<EmptyDescription>{errorMessage(monitorsQuery.error, 'Unknown request error')}</EmptyDescription>
+					<EmptyContent>
+						<Button variant="unstyled" className="secondary-button" type="button" onClick={() => void monitorsQuery.refetch()}>
+							Try again
 						</Button>
+					</EmptyContent>
+				</Empty>
+			) : monitors.length === 0 ? (
+				<Empty>
+					<EmptyMedia variant="icon">
+						<Database />
+					</EmptyMedia>
+					<EmptyTitle>No monitors yet</EmptyTitle>
+					<EmptyDescription>Add the first endpoint to start collecting availability checks.</EmptyDescription>
+					{!formOpen && (
+						<EmptyContent>
+							<Button variant="unstyled" className="primary-button" type="button" onClick={onAddMonitor}>
+								Add first site <ArrowRight />
+							</Button>
+						</EmptyContent>
 					)}
-				</div>
+				</Empty>
 			) : (
 				<div className="monitor-list">
 					<div className="services-title">

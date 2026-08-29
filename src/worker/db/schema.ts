@@ -15,6 +15,16 @@ export const notificationSettings = sqliteTable('notification_settings', {
 	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
+export const aiSettings = sqliteTable('ai_settings', {
+	id: integer('id').primaryKey(),
+	enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+	baseUrl: text('base_url'),
+	apiKey: text('api_key'),
+	model: text('model'),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
 export const sessions = sqliteTable(
 	'sessions',
 	{
@@ -86,6 +96,7 @@ export const incidents = sqliteTable(
 		resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' }),
 		startStatusCode: integer('start_status_code'),
 		startError: text('start_error'),
+		aiMessage: text('ai_message'),
 		durationMs: integer('duration_ms'),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),

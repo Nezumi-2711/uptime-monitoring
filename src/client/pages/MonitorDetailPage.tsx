@@ -1,16 +1,24 @@
-import { ArrowLeft, BellOff, CheckCircle2, Clock3, ExternalLink, RefreshCw, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, BellOff, CheckCircle2, Clock3, ExternalLink, Pencil, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Empty, EmptyContent, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AppHeader } from '../components/AppHeader';
 import { LatencySparkline } from '../components/charts/LatencySparkline';
 import { UptimeBar } from '../components/charts/UptimeBar';
+import { DeleteMonitorDialog } from '../components/dashboard/DeleteMonitorDialog';
+import { INTERVAL_OPTIONS, MonitorFormDialog } from '../components/dashboard/MonitorFormDialog';
 import { navigate } from '../lib/router';
-import { useLogoutMutation } from '../queries/auth';
 import {
+	useDeleteMonitorMutation,
 	useMonitorChecksQuery,
 	useMonitorIncidentsQuery,
 	useMonitorQuery,
 	useMonitorStatsQuery,
 	useRunCheckMutation,
+	useUpdateMonitorMutation,
 } from '../queries/monitors';
 
 function formatDate(value: string) {
@@ -31,13 +39,20 @@ function statusDetails(lastOk: boolean | null): { label: string; className: Badg
 	return { label: 'Awaiting first check', className: 'checking' };
 }
 
+function formatInterval(seconds: number) {
+	return INTERVAL_OPTIONS.find((option) => Number(option.value) === seconds)?.label ?? `${Math.round(seconds / 60)} min`;
+}
+
 export function MonitorDetailPage({ id }: { id: number }) {
+	const [isEditing, setIsEditing] = useState(false);
+	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const monitorQuery = useMonitorQuery(id);
 	const checksQuery = useMonitorChecksQuery(id);
 	const statsQuery = useMonitorStatsQuery(id);
 	const incidentsQuery = useMonitorIncidentsQuery(id);
 	const checkMutation = useRunCheckMutation();
-	const logoutMutation = useLogoutMutation();
+	const updateMutation = useUpdateMonitorMutation();
+	const deleteMutation = useDeleteMonitorMutation();
 	const monitor = monitorQuery.data?.monitor;
 	const checks = checksQuery.data?.checks ?? [];
 	const incidents = incidentsQuery.data?.incidents ?? [];
@@ -53,33 +68,29 @@ export function MonitorDetailPage({ id }: { id: number }) {
 		);
 	if (monitorQuery.isError || !monitor)
 		return (
-			<div className="detail-error">
-				<strong>Monitor not found</strong>
-				<p>The requested monitor could not be loaded.</p>
-				<Button variant="unstyled" className="secondary-button" onClick={() => navigate('/dashboard')}>
-					Return to dashboard
-				</Button>
+			<div className="grid min-h-dvh place-content-center">
+				<Empty>
+					<EmptyTitle>Monitor not found</EmptyTitle>
+					<EmptyDescription>The requested monitor could not be loaded.</EmptyDescription>
+					<EmptyContent>
+						<Button variant="unstyled" className="secondary-button" onClick={() => navigate('/dashboard')}>
+							Return to dashboard
+						</Button>
+					</EmptyContent>
+				</Empty>
 			</div>
 		);
 
 	return (
 		<div className="dashboard-shell">
-			<header className="dashboard-header">
-				<div className="dashboard-header-inner">
-					<Button variant="unstyled" className="brand brand-button" type="button" onClick={() => navigate('/dashboard')}>
-						<Zap className="brand-mark" fill="currentColor" />
-						<span>upwatch</span>
-					</Button>
-					<div className="nav-actions">
-						<Button variant="unstyled" className="nav-auth" onClick={() => navigate('/settings')}>
-							Settings
-						</Button>
-						<Button variant="unstyled" className="nav-auth" onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
-							Sign out
-						</Button>
-					</div>
-				</div>
-			</header>
+			<AppHeader />
+			{isEditing && <MonitorFormDialog key={monitor.id} editing={monitor} onClose={() => setIsEditing(false)} />}
+			<DeleteMonitorDialog
+				monitor={isConfirmingDelete ? monitor : null}
+				isPending={deleteMutation.isPending}
+				onCancel={() => setIsConfirmingDelete(false)}
+				onConfirm={() => deleteMutation.mutate(monitor.id, { onSuccess: () => navigate('/dashboard') })}
+			/>
 			<main className="dashboard-main detail-main">
 				<Button variant="unstyled" className="back-link" type="button" onClick={() => navigate('/dashboard')}>
 					<ArrowLeft /> All monitors
@@ -119,20 +130,24 @@ export function MonitorDetailPage({ id }: { id: number }) {
 					{(['24h', '7d', '30d', '90d'] as const).map((key) => {
 						const window = statsQuery.data?.windows[key];
 						return (
-							<article className="sla-card" key={key}>
-								<p>{key} uptime</p>
-								<strong>{window?.uptimePct == null ? '—' : `${window.uptimePct.toFixed(3)}%`}</strong>
-								<span>
-									{window?.totalChecks ?? 0} checks · {window?.avgLatencyMs ?? '—'} ms avg
-								</span>
-							</article>
+							<Card asChild key={key}>
+								<article className="sla-card">
+									<p>{key} uptime</p>
+									<strong>{window?.uptimePct == null ? '—' : `${window.uptimePct.toFixed(3)}%`}</strong>
+									<span>
+										{window?.totalChecks ?? 0} checks · {window?.avgLatencyMs ?? '—'} ms avg
+									</span>
+								</article>
+							</Card>
 						);
 					})}
-					<article className={`sla-card incident-summary ${openIncident ? 'has-incident' : ''}`}>
-						<p>Current incident</p>
-						<strong>{openIncident ? formatDuration(null, openIncident.startedAt) : 'None'}</strong>
-						<span>{openIncident ? `Open since ${formatDate(openIncident.startedAt)}` : 'Everything is operational'}</span>
-					</article>
+					<Card asChild>
+						<article className={`sla-card incident-summary ${openIncident ? 'has-incident' : ''}`}>
+							<p>Current incident</p>
+							<strong>{openIncident ? formatDuration(null, openIncident.startedAt) : 'None'}</strong>
+							<span>{openIncident ? `Open since ${formatDate(openIncident.startedAt)}` : 'Everything is operational'}</span>
+						</article>
+					</Card>
 				</section>
 
 				<div className="detail-grid">
@@ -172,34 +187,41 @@ export function MonitorDetailPage({ id }: { id: number }) {
 						{/* Keyboard focus makes this horizontally scrollable region accessible without a pointer. */}
 						{/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
 						<section className="data-table-wrap recent-checks-scroll" aria-label="Recent checks" tabIndex={0}>
-							<table className="data-table">
-								<thead>
-									<tr>
-										<th>Status</th>
-										<th>Response</th>
-										<th>Latency</th>
-										<th>Checked</th>
-									</tr>
-								</thead>
-								<tbody>
+							<Table className="min-w-150">
+								<TableHeader>
+									<TableRow>
+										<TableHead>Status</TableHead>
+										<TableHead>Response</TableHead>
+										<TableHead>Latency</TableHead>
+										<TableHead>Checked</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
 									{checks.slice(0, 20).map((check) => (
-										<tr key={check.id}>
-											<td>
+										<TableRow key={check.id}>
+											<TableCell>
 												<Badge variant={check.ok ? 'online' : 'offline'}>{check.ok ? 'Up' : 'Down'}</Badge>
-											</td>
-											<td>
-												<code>{check.statusCode ? `HTTP ${check.statusCode}` : (check.error ?? 'Failed')}</code>
-											</td>
-											<td>{check.latencyMs} ms</td>
-											<td>{formatDate(check.checkedAt)}</td>
-										</tr>
+											</TableCell>
+											<TableCell>
+												<code className="max-w-65 truncate font-mono text-[11px]/[1.4] font-normal">
+													{check.statusCode ? `HTTP ${check.statusCode}` : (check.error ?? 'Failed')}
+												</code>
+											</TableCell>
+											<TableCell>{check.latencyMs} ms</TableCell>
+											<TableCell>{formatDate(check.checkedAt)}</TableCell>
+										</TableRow>
 									))}
-								</tbody>
-							</table>
-							{checks.length === 0 && <div className="table-empty">No checks recorded.</div>}
+								</TableBody>
+							</Table>
+							{checks.length === 0 && (
+								<Empty className="min-h-37.5 p-6">
+									<EmptyTitle className="text-[13px]">No checks yet</EmptyTitle>
+									<EmptyDescription>No checks recorded.</EmptyDescription>
+								</Empty>
+							)}
 						</section>
 					</section>
-					<section className="data-panel">
+					<section className="data-panel incidents-panel">
 						<div className="data-panel-heading">
 							<div>
 								<p className="overline">Downtime</p>
@@ -207,26 +229,91 @@ export function MonitorDetailPage({ id }: { id: number }) {
 							</div>
 							<span>{incidents.length} recorded</span>
 						</div>
-						<div className="incident-list">
+						{/* Keyboard focus makes this scrollable region accessible without a pointer. */}
+						{/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+						<div className="incident-list" aria-label="Incident history" tabIndex={0}>
 							{incidents.map((incident) => (
 								<article className={incident.resolvedAt ? 'resolved' : 'open'} key={incident.id}>
 									<span>{incident.resolvedAt ? <CheckCircle2 /> : <Clock3 />}</span>
 									<div>
 										<strong>{incident.resolvedAt ? 'Resolved incident' : 'Incident in progress'}</strong>
 										<p>
-											{incident.startError ??
+											{incident.aiMessage ??
+												incident.startError ??
 												(incident.startStatusCode ? `HTTP ${incident.startStatusCode}` : 'Endpoint became unavailable')}
 										</p>
+										{incident.aiMessage && incident.startError && <small className="incident-raw">{incident.startError}</small>}
 										<small>
 											{formatDate(incident.startedAt)} · {formatDuration(incident.durationMs, incident.startedAt)}
 										</small>
 									</div>
 								</article>
 							))}
-							{incidents.length === 0 && <div className="table-empty">No downtime incidents recorded.</div>}
+							{incidents.length === 0 && (
+								<Empty className="min-h-37.5 p-6">
+									<EmptyTitle className="text-[13px]">No incidents yet</EmptyTitle>
+									<EmptyDescription>No downtime incidents recorded.</EmptyDescription>
+								</Empty>
+							)}
 						</div>
 					</section>
 				</div>
+
+				<section className="data-panel configuration-panel">
+					<div className="data-panel-heading">
+						<div>
+							<p className="overline">Setup</p>
+							<h2>Configuration</h2>
+						</div>
+						<Button variant="unstyled" className="secondary-button" type="button" onClick={() => setIsEditing(true)}>
+							<Pencil /> Edit
+						</Button>
+					</div>
+					<dl className="config-list">
+						<div className="config-row">
+							<dt>Method</dt>
+							<dd>{monitor.method}</dd>
+						</div>
+						<div className="config-row">
+							<dt>Expected status</dt>
+							<dd>{monitor.expectedStatus}</dd>
+						</div>
+						<div className="config-row">
+							<dt>Check interval</dt>
+							<dd>{formatInterval(monitor.intervalSeconds)}</dd>
+						</div>
+						<div className="config-row">
+							<dt>Timeout</dt>
+							<dd>{monitor.timeoutMs.toLocaleString()} ms</dd>
+						</div>
+						<div className="config-row">
+							<dt>Scheduled checks</dt>
+							<dd className="config-row-actions">
+								<span>{monitor.enabled ? 'Running' : 'Paused'}</span>
+								<Button
+									variant="unstyled"
+									className="row-action"
+									type="button"
+									disabled={updateMutation.isPending}
+									onClick={() => updateMutation.mutate({ id: monitor.id, input: { enabled: !monitor.enabled } })}
+								>
+									{monitor.enabled ? <PowerOff /> : <Power />}
+									{monitor.enabled ? 'Pause' : 'Resume'}
+								</Button>
+							</dd>
+						</div>
+						<div className="config-row">
+							<dt>Incident alerts</dt>
+							<dd>{monitor.alertsEnabled ? 'Enabled' : 'Muted'}</dd>
+						</div>
+					</dl>
+					<div className="config-danger">
+						<p>This permanently deletes the monitor and its check history.</p>
+						<Button variant="unstyled" className="danger-button" type="button" onClick={() => setIsConfirmingDelete(true)}>
+							<Trash2 /> Delete monitor
+						</Button>
+					</div>
+				</section>
 			</main>
 		</div>
 	);

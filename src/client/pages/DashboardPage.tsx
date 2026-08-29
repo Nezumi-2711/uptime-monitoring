@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Monitor } from '../api/monitors';
+import { AppHeader } from '../components/AppHeader';
 import { DashboardFooter } from '../components/dashboard/DashboardFooter';
-import { DashboardHeader } from '../components/dashboard/DashboardHeader';
 import { DashboardOverview } from '../components/dashboard/DashboardOverview';
 import { MonitorFormDialog } from '../components/dashboard/MonitorFormDialog';
 import { MonitorListPanel } from '../components/dashboard/MonitorListPanel';
@@ -27,7 +27,7 @@ export function DashboardPage() {
 
 	return (
 		<div className="dashboard-shell">
-			<DashboardHeader />
+			<AppHeader context="Production monitors" />
 
 			<main className="dashboard-main">
 				<DashboardOverview onAddMonitor={openCreateForm} />

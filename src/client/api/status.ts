@@ -7,6 +7,7 @@ export type PublicService = {
 	id: number;
 	name: string;
 	status: PublicServiceStatus;
+	message: string | null;
 	lastCheckedAt: string | null;
 	uptime90d: number | null;
 	history: Array<{

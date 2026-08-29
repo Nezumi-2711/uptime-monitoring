@@ -1,7 +1,8 @@
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { deterministicIncidentMessage } from '../ai/fallback-message';
 import { getDb } from '../db/client';
-import { checks, monitorDailyStats, monitors } from '../db/schema';
+import { checks, incidents, monitorDailyStats, monitors } from '../db/schema';
 import { resolveFavicon } from './monitors';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,6 +21,12 @@ type DailyAggregate = {
 	day: Date;
 	totalChecks: number;
 	upChecks: number;
+};
+
+type OpenIncident = {
+	monitorId: number;
+	aiMessage: string | null;
+	startStatusCode: number | null;
 };
 
 type EdgeCache = {
@@ -76,9 +83,10 @@ statusRoutes.get('/', async (context) => {
 	const monitorIds = monitorRows.map((monitor) => monitor.id);
 	let historicalRows: DailyAggregate[] = [];
 	let todayRows: DailyAggregate[] = [];
+	let openIncidentRows: OpenIncident[] = [];
 
 	if (monitorIds.length > 0) {
-		[historicalRows, todayRows] = await Promise.all([
+		[historicalRows, todayRows, openIncidentRows] = await Promise.all([
 			db
 				.select({
 					monitorId: monitorDailyStats.monitorId,
@@ -105,6 +113,14 @@ statusRoutes.get('/', async (context) => {
 				.from(checks)
 				.where(and(inArray(checks.monitorId, monitorIds), gte(checks.checkedAt, new Date(today))))
 				.groupBy(checks.monitorId),
+			db
+				.select({
+					monitorId: incidents.monitorId,
+					aiMessage: incidents.aiMessage,
+					startStatusCode: incidents.startStatusCode,
+				})
+				.from(incidents)
+				.where(and(inArray(incidents.monitorId, monitorIds), isNull(incidents.resolvedAt))),
 		]);
 	}
 
@@ -114,6 +130,7 @@ statusRoutes.get('/', async (context) => {
 		if (buckets) buckets.push(row);
 		else bucketsByMonitor.set(row.monitorId, [row]);
 	}
+	const openIncidentsByMonitor = new Map(openIncidentRows.map((incident) => [incident.monitorId, incident]));
 
 	const services = monitorRows.map((monitor) => {
 		const buckets = bucketsByMonitor.get(monitor.id) ?? [];
@@ -128,10 +145,13 @@ statusRoutes.get('/', async (context) => {
 			};
 		});
 
+		const openIncident = openIncidentsByMonitor.get(monitor.id);
 		return {
 			id: monitor.id,
 			name: monitor.name,
 			status: serviceStatus(monitor.lastOk),
+			message:
+				monitor.lastOk === false ? (openIncident?.aiMessage ?? deterministicIncidentMessage(openIncident?.startStatusCode ?? null)) : null,
 			lastCheckedAt: monitor.lastCheckedAt?.toISOString() ?? null,
 			uptime90d: roundUptime(upChecks, totalChecks),
 			history,
