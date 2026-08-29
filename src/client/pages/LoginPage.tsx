@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { navigate } from '../lib/router';
 import { useLoginMutation, useSessionQuery } from '../queries/auth';
 
@@ -37,7 +38,7 @@ export function LoginPage() {
 				<form className="auth-form" onSubmit={handleSubmit}>
 					<div className="auth-field">
 						<label htmlFor="password">Password</label>
-						<input
+						<Input
 							id="password"
 							type="password"
 							autoComplete="current-password"

@@ -1,4 +1,5 @@
 import { ArrowLeft, BellOff, CheckCircle2, Clock3, ExternalLink, RefreshCw, Zap } from 'lucide-react';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LatencySparkline } from '../components/charts/LatencySparkline';
 import { UptimeBar } from '../components/charts/UptimeBar';
@@ -24,7 +25,7 @@ function formatDuration(ms: number | null, startedAt: string) {
 	return `${Math.round(duration / 86_400_000)} days`;
 }
 
-function statusDetails(lastOk: boolean | null) {
+function statusDetails(lastOk: boolean | null): { label: string; className: BadgeVariant } {
 	if (lastOk === true) return { label: 'Operational', className: 'online' };
 	if (lastOk === false) return { label: 'Down', className: 'offline' };
 	return { label: 'Awaiting first check', className: 'checking' };
@@ -96,10 +97,7 @@ export function MonitorDetailPage({ id }: { id: number }) {
 						</div>
 					</div>
 					<div className="detail-actions">
-						<span className={`row-status ${status.className}`}>
-							<i />
-							{status.label}
-						</span>
+						<Badge variant={status.className}>{status.label}</Badge>
 						{!monitor.alertsEnabled && (
 							<span className="muted-alert">
 								<BellOff /> Alerts muted
@@ -187,10 +185,7 @@ export function MonitorDetailPage({ id }: { id: number }) {
 									{checks.slice(0, 20).map((check) => (
 										<tr key={check.id}>
 											<td>
-												<span className={`row-status ${check.ok ? 'online' : 'offline'}`}>
-													<i />
-													{check.ok ? 'Up' : 'Down'}
-												</span>
+												<Badge variant={check.ok ? 'online' : 'offline'}>{check.ok ? 'Up' : 'Down'}</Badge>
 											</td>
 											<td>
 												<code>{check.statusCode ? `HTTP ${check.statusCode}` : (check.error ?? 'Failed')}</code>

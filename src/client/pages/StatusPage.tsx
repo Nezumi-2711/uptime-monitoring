@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Activity, CircleCheck, Database, RefreshCw, TriangleAlert, Zap } from 'lucide-react';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { PublicOverallStatus, PublicServiceStatus } from '../api/status';
 import { SiteIcon } from '../components/SiteIcon';
@@ -23,7 +24,7 @@ const OVERALL_COPY: Record<PublicOverallStatus, { title: string; detail: string 
 	},
 };
 
-const SERVICE_STATUS: Record<PublicServiceStatus, { label: string; className: string }> = {
+const SERVICE_STATUS: Record<PublicServiceStatus, { label: string; className: BadgeVariant }> = {
 	up: { label: 'Operational', className: 'online' },
 	down: { label: 'Down', className: 'offline' },
 	unknown: { label: 'Awaiting data', className: 'checking' },
@@ -159,10 +160,9 @@ export function StatusPage() {
 													</span>
 													<div>
 														<strong>{service.name}</strong>
-														<span className={`row-status ${serviceStatus.className}`}>
-															<i />
+														<Badge className="mt-1.75" variant={serviceStatus.className}>
 															{serviceStatus.label}
-														</span>
+														</Badge>
 													</div>
 												</div>
 												<div className="public-service-uptime">

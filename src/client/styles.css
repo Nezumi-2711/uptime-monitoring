@@ -205,7 +205,8 @@ button {
 	color: var(--muted);
 }
 .primary-button,
-.secondary-button {
+.secondary-button,
+.danger-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -243,12 +244,23 @@ button {
 	border-color: #aaa;
 	background: var(--soft);
 }
+.danger-button {
+	border: 1px solid #efcaca;
+	color: #9f2f2f;
+	background: #fff6f6;
+}
+.danger-button:hover:not(:disabled) {
+	border-color: #e0b4b4;
+	background: #fff0f0;
+}
 .primary-button:active:not(:disabled),
-.secondary-button:active:not(:disabled) {
+.secondary-button:active:not(:disabled),
+.danger-button:active:not(:disabled) {
 	transform: translateY(1px);
 }
 .primary-button:disabled,
-.secondary-button:disabled {
+.secondary-button:disabled,
+.danger-button:disabled {
 	cursor: wait;
 	opacity: 0.6;
 }
@@ -310,28 +322,6 @@ button {
 	font-weight: 500;
 	color: #353535;
 }
-.field input,
-.field select {
-	width: 100%;
-	min-height: 42px;
-	padding: 8px 12px;
-	border: 1px solid #cfcfcf;
-	border-radius: 6px;
-	font-size: 14px;
-	color: var(--ink);
-	background: #fff;
-	box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.025);
-}
-.field input:hover,
-.field select:hover {
-	border-color: #aaa;
-}
-.field input:focus,
-.field select:focus {
-	border-color: var(--primary-deep);
-	outline: 0;
-	box-shadow: 0 0 0 3px rgb(36 180 126 / 0.14);
-}
 .toggle-field {
 	display: flex;
 	align-items: center;
@@ -340,12 +330,9 @@ button {
 	min-height: 42px;
 	font-size: 13px;
 	color: #444;
-	cursor: pointer;
 }
-.toggle-field input {
-	width: 16px;
-	height: 16px;
-	accent-color: var(--primary-deep);
+.toggle-field label {
+	cursor: pointer;
 }
 .form-actions {
 	display: flex;
@@ -816,25 +803,6 @@ button {
 	font-size: 13px;
 	font-weight: 500;
 	color: #353535;
-}
-.auth-field input {
-	width: 100%;
-	min-height: 42px;
-	padding: 8px 12px;
-	border: 1px solid #cfcfcf;
-	border-radius: 6px;
-	font-size: 14px;
-	color: var(--ink);
-	background: #fff;
-	box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.025);
-}
-.auth-field input:hover {
-	border-color: #a9a9a9;
-}
-.auth-field input:focus {
-	border-color: var(--primary-deep);
-	outline: 0;
-	box-shadow: 0 0 0 3px rgb(36 180 126 / 0.14);
 }
 .auth-error {
 	margin: -4px 0 0;
@@ -1384,15 +1352,11 @@ button {
 }
 .settings-toggle {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	gap: 11px;
-	cursor: pointer;
 }
-.settings-toggle input {
-	width: 17px;
-	height: 17px;
-	margin-top: 2px;
-	accent-color: var(--primary-deep);
+.settings-toggle label {
+	cursor: pointer;
 }
 .settings-toggle strong,
 .settings-toggle small {

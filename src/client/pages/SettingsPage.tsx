@@ -1,6 +1,8 @@
 import { type FormEvent, useState } from 'react';
 import { ArrowLeft, BellRing, Send, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import type { NotificationSettings } from '../api/settings';
 import { navigate } from '../lib/router';
 import { useLogoutMutation } from '../queries/auth';
@@ -25,7 +27,7 @@ function SettingsForm({ settings }: { settings: NotificationSettings }) {
 		<form className="settings-form" onSubmit={submit}>
 			<label className="field" htmlFor="webhook-url">
 				<span>Webhook URL</span>
-				<input
+				<Input
 					id="webhook-url"
 					type="url"
 					value={webhookUrl}
@@ -33,18 +35,13 @@ function SettingsForm({ settings }: { settings: NotificationSettings }) {
 					placeholder="https://hooks.example.com/services/…"
 				/>
 			</label>
-			<label className="settings-toggle" htmlFor="webhook-enabled" aria-label="Enable incident alerts">
-				<input
-					id="webhook-enabled"
-					type="checkbox"
-					checked={webhookEnabled}
-					onChange={(event) => setWebhookEnabled(event.target.checked)}
-				/>
-				<span>
+			<div className="settings-toggle">
+				<Switch id="webhook-enabled" checked={webhookEnabled} onCheckedChange={setWebhookEnabled} />
+				<label htmlFor="webhook-enabled">
 					<strong>Enable incident alerts</strong>
 					<small>Send a webhook when a monitor goes down and when it recovers.</small>
-				</span>
-			</label>
+				</label>
+			</div>
 			<div className="settings-actions">
 				<Button
 					variant="unstyled"
