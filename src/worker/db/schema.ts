@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const adminCredentials = sqliteTable('admin_credentials', {
 	id: integer('id').primaryKey(),
@@ -69,6 +69,37 @@ export const monitors = sqliteTable(
 	(table) => [index('monitors_enabled_last_checked_at_idx').on(table.enabled, table.lastCheckedAt)],
 );
 
+export const maintenanceWindows = sqliteTable(
+	'maintenance_windows',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		name: text('name').notNull(),
+		startMinute: integer('start_minute').notNull(),
+		durationMinutes: integer('duration_minutes').notNull(),
+		timezone: text('timezone').notNull().default('UTC'),
+		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) => [index('maintenance_windows_enabled_idx').on(table.enabled)],
+);
+
+export const maintenanceWindowMonitors = sqliteTable(
+	'maintenance_window_monitors',
+	{
+		windowId: integer('window_id')
+			.notNull()
+			.references(() => maintenanceWindows.id, { onDelete: 'cascade' }),
+		monitorId: integer('monitor_id')
+			.notNull()
+			.references(() => monitors.id, { onDelete: 'cascade' }),
+	},
+	(table) => [
+		primaryKey({ columns: [table.windowId, table.monitorId] }),
+		index('maintenance_window_monitors_monitor_id_idx').on(table.monitorId),
+	],
+);
+
 export const checks = sqliteTable(
 	'checks',
 	{
@@ -81,6 +112,7 @@ export const checks = sqliteTable(
 		latencyMs: integer('latency_ms'),
 		error: text('error'),
 		checkedAt: integer('checked_at', { mode: 'timestamp_ms' }).notNull(),
+		maintenance: integer('maintenance', { mode: 'boolean' }).notNull().default(false),
 	},
 	(table) => [index('checks_monitor_id_checked_at_idx').on(table.monitorId, table.checkedAt)],
 );

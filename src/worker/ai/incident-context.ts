@@ -109,7 +109,7 @@ export async function buildIncidentContext(db: Database, monitor: Monitor, resul
 		const recent = await db
 			.select({ ok: checks.ok, latencyMs: checks.latencyMs, checkedAt: checks.checkedAt })
 			.from(checks)
-			.where(and(eq(checks.monitorId, monitor.id), gte(checks.checkedAt, new Date(now - RECENT_WINDOW_MS))))
+			.where(and(eq(checks.monitorId, monitor.id), eq(checks.maintenance, false), gte(checks.checkedAt, new Date(now - RECENT_WINDOW_MS))))
 			.orderBy(desc(checks.checkedAt))
 			.limit(RECENT_LIMIT);
 

@@ -1,6 +1,6 @@
 import { getJson } from './http';
 
-export type PublicServiceStatus = 'up' | 'down' | 'unknown';
+export type PublicServiceStatus = 'up' | 'down' | 'unknown' | 'maintenance';
 export type PublicOverallStatus = 'operational' | 'degraded' | 'down';
 
 export type PublicService = {
@@ -8,6 +8,7 @@ export type PublicService = {
 	name: string;
 	status: PublicServiceStatus;
 	message: string | null;
+	maintenance: { name: string; endsAt: string } | null;
 	lastCheckedAt: string | null;
 	uptime90d: number | null;
 	history: Array<{

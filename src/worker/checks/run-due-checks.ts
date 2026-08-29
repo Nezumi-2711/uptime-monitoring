@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { generateIncidentMessage } from '../ai/incident-message';
 import { getDb } from '../db/client';
 import { monitors } from '../db/schema';
+import { loadActiveMaintenance } from '../maintenance/windows';
 import { sendIncidentAlert } from '../notifications/webhook';
 import { buildResultStatements } from './persist-result';
 import { runCheck } from './run-check';
@@ -32,6 +33,7 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		.limit(MAX_MONITORS_PER_RUN);
 
 	if (due.length === 0) return { checked: 0, up: 0, down: 0 };
+	const activeMaintenance = await loadActiveMaintenance(db, new Date());
 
 	const completed: Array<{
 		monitor: (typeof due)[number];
@@ -55,7 +57,7 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		monitor,
 		result,
 		checkedAt,
-		...buildResultStatements(db, monitor, result, checkedAt),
+		...buildResultStatements(db, monitor, result, checkedAt, activeMaintenance.has(monitor.id)),
 	}));
 	const statements = persisted.flatMap((item) => item.statements);
 

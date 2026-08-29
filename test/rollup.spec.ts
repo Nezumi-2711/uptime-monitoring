@@ -9,6 +9,8 @@ describe('daily monitor rollups', () => {
 	});
 	beforeEach(async () => {
 		await env.DB.batch([
+			env.DB.prepare('DELETE FROM maintenance_window_monitors'),
+			env.DB.prepare('DELETE FROM maintenance_windows'),
 			env.DB.prepare('DELETE FROM monitor_daily_stats'),
 			env.DB.prepare('DELETE FROM checks'),
 			env.DB.prepare('DELETE FROM incidents'),
@@ -38,6 +40,9 @@ describe('daily monitor rollups', () => {
 				id,
 				Date.parse('2026-08-27T22:00:00Z'),
 			),
+			env.DB.prepare(
+				'INSERT INTO checks (monitor_id, ok, status_code, latency_ms, checked_at, maintenance) VALUES (?, 0, 503, 900, ?, 1)',
+			).bind(id, Date.parse('2026-08-27T23:00:00Z')),
 		]);
 
 		expect(await runDailyRollup(env, now)).toEqual({ day: '2026-08-27', monitors: 1 });

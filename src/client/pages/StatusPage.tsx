@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, CircleCheck, Database, RefreshCw, TriangleAlert, Zap } from 'lucide-react';
+import { Activity, CircleCheck, Database, RefreshCw, TriangleAlert, Wrench, Zap } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -29,7 +29,10 @@ const SERVICE_STATUS: Record<PublicServiceStatus, { label: string; className: Ba
 	up: { label: 'Operational', className: 'online' },
 	down: { label: 'Down', className: 'offline' },
 	unknown: { label: 'Awaiting data', className: 'checking' },
+	maintenance: { label: 'Under maintenance', className: 'maintenance' },
 };
+
+const maintenanceTime = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 
 function errorMessage(error: unknown) {
 	return error instanceof Error ? error.message : 'Unknown request error';
@@ -55,6 +58,7 @@ export function StatusPage() {
 	const [now, setNow] = useState(Date.now);
 	const status = statusQuery.data;
 	const activeIncidents = status?.services.filter((service) => service.message) ?? [];
+	const maintenanceServices = status?.services.filter((service) => service.maintenance) ?? [];
 
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(Date.now()), 5_000);
@@ -126,6 +130,43 @@ export function StatusPage() {
 							<time dateTime={new Date(status.updatedAt).toISOString()}>{relativeUpdate(status.updatedAt, now)}</time>
 						</section>
 
+						{maintenanceServices.length > 0 && (
+							<section className="scheduled-maintenance" aria-labelledby="scheduled-maintenance-title" aria-live="polite">
+								<header className="scheduled-maintenance-header">
+									<div className="scheduled-maintenance-heading">
+										<span className="scheduled-maintenance-icon">
+											<Wrench aria-hidden="true" />
+										</span>
+										<div>
+											<p>Scheduled maintenance</p>
+											<h2 id="scheduled-maintenance-title">Planned service work is in progress</h2>
+										</div>
+									</div>
+									<span className="scheduled-maintenance-count">
+										{maintenanceServices.length} {maintenanceServices.length === 1 ? 'service' : 'services'}
+									</span>
+								</header>
+								<div className="scheduled-maintenance-list">
+									{maintenanceServices.map((service) => (
+										<article className="scheduled-maintenance-row" key={service.id}>
+											<div className="scheduled-maintenance-service">
+												<span className="scheduled-maintenance-service-icon">
+													<SiteIcon monitorId={service.id} favicon="public" />
+												</span>
+												<div>
+													<strong>{service.name}</strong>
+													<span>{service.maintenance?.name}</span>
+												</div>
+											</div>
+											<span className="scheduled-maintenance-state">
+												<i /> until {maintenanceTime.format(new Date(service.maintenance!.endsAt))}
+											</span>
+										</article>
+									))}
+								</div>
+							</section>
+						)}
+
 						{activeIncidents.length > 0 && (
 							<section className="active-incidents" aria-labelledby="active-incidents-title" aria-live="polite">
 								<header className="active-incidents-header">
@@ -184,7 +225,7 @@ export function StatusPage() {
 							</div>
 
 							{status.services.length === 0 ? (
-								<Empty className="min-h-[280px] place-content-center p-12">
+								<Empty className="min-h-70 place-content-center p-12">
 									<EmptyMedia variant="icon">
 										<Database />
 									</EmptyMedia>

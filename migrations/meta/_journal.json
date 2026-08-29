@@ -36,6 +36,13 @@
       "when": 1787997596170,
       "tag": "0004_smiling_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1788007515959,
+      "tag": "0005_pink_trish_tilby",
+      "breakpoints": true
     }
   ]
 }

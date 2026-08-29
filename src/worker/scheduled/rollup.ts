@@ -1,4 +1,4 @@
-import { and, gte, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { checks, monitorDailyStats } from '../db/schema';
 
@@ -23,7 +23,7 @@ export async function runDailyRollup(env: Env, now = new Date()): Promise<DailyR
 			maxLatencyMs: sql<number | null>`max(${checks.latencyMs})`,
 		})
 		.from(checks)
-		.where(and(gte(checks.checkedAt, dayStart), lt(checks.checkedAt, dayEnd)))
+		.where(and(gte(checks.checkedAt, dayStart), lt(checks.checkedAt, dayEnd), eq(checks.maintenance, false)))
 		.groupBy(checks.monitorId);
 
 	if (rows.length > 0) {

@@ -3,12 +3,13 @@ import { Hono } from 'hono';
 import { deterministicIncidentMessage } from '../ai/fallback-message';
 import { getDb } from '../db/client';
 import { checks, incidents, monitorDailyStats, monitors } from '../db/schema';
+import { loadActiveMaintenance, type ActiveMaintenance } from '../maintenance/windows';
 import { resolveFavicon } from './monitors';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FAVICON_CACHE_SECONDS = 86_400;
 
-type ServiceStatus = 'up' | 'down' | 'unknown';
+type ServiceStatus = 'up' | 'down' | 'unknown' | 'maintenance';
 type OverallStatus = 'operational' | 'degraded' | 'down';
 
 type HistoryEntry = {
@@ -53,7 +54,7 @@ function overallStatus(statuses: ServiceStatus[]): OverallStatus {
 	let checked = 0;
 	let down = 0;
 	for (const status of statuses) {
-		if (status === 'unknown') continue;
+		if (status === 'unknown' || status === 'maintenance') continue;
 		checked += 1;
 		if (status === 'down') down += 1;
 	}
@@ -84,9 +85,10 @@ statusRoutes.get('/', async (context) => {
 	let historicalRows: DailyAggregate[] = [];
 	let todayRows: DailyAggregate[] = [];
 	let openIncidentRows: OpenIncident[] = [];
+	let activeMaintenance = new Map<number, ActiveMaintenance>();
 
 	if (monitorIds.length > 0) {
-		[historicalRows, todayRows, openIncidentRows] = await Promise.all([
+		[historicalRows, todayRows, openIncidentRows, activeMaintenance] = await Promise.all([
 			db
 				.select({
 					monitorId: monitorDailyStats.monitorId,
@@ -111,7 +113,7 @@ statusRoutes.get('/', async (context) => {
 					upChecks: sql<number>`coalesce(sum(case when ${checks.ok} = 1 then 1 else 0 end), 0)`,
 				})
 				.from(checks)
-				.where(and(inArray(checks.monitorId, monitorIds), gte(checks.checkedAt, new Date(today))))
+				.where(and(inArray(checks.monitorId, monitorIds), eq(checks.maintenance, false), gte(checks.checkedAt, new Date(today))))
 				.groupBy(checks.monitorId),
 			db
 				.select({
@@ -121,6 +123,7 @@ statusRoutes.get('/', async (context) => {
 				})
 				.from(incidents)
 				.where(and(inArray(incidents.monitorId, monitorIds), isNull(incidents.resolvedAt))),
+			loadActiveMaintenance(db, now),
 		]);
 	}
 
@@ -146,12 +149,16 @@ statusRoutes.get('/', async (context) => {
 		});
 
 		const openIncident = openIncidentsByMonitor.get(monitor.id);
+		const maintenance = activeMaintenance.get(monitor.id);
 		return {
 			id: monitor.id,
 			name: monitor.name,
-			status: serviceStatus(monitor.lastOk),
+			status: maintenance ? ('maintenance' as const) : serviceStatus(monitor.lastOk),
 			message:
-				monitor.lastOk === false ? (openIncident?.aiMessage ?? deterministicIncidentMessage(openIncident?.startStatusCode ?? null)) : null,
+				!maintenance && monitor.lastOk === false
+					? (openIncident?.aiMessage ?? deterministicIncidentMessage(openIncident?.startStatusCode ?? null))
+					: null,
+			maintenance: maintenance ? { name: maintenance.name, endsAt: maintenance.endsAt.toISOString() } : null,
 			lastCheckedAt: monitor.lastCheckedAt?.toISOString() ?? null,
 			uptime90d: roundUptime(upChecks, totalChecks),
 			history,

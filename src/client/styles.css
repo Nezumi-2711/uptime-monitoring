@@ -1393,6 +1393,232 @@ button {
 	color: #16754f;
 	background: #f2fbf7;
 }
+.maintenance-panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	padding: 20px 26px;
+	border-bottom: 1px solid #ededed;
+}
+.maintenance-panel-header p {
+	margin: 0;
+	font-size: 13px;
+	color: var(--muted);
+}
+.maintenance-panel-header svg,
+.maintenance-window-actions svg {
+	width: 15px;
+	height: 15px;
+}
+.maintenance-empty {
+	padding: 44px 24px;
+}
+.maintenance-window-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	padding: 21px 26px;
+}
+.maintenance-window-row + .maintenance-window-row {
+	border-top: 1px solid #ededed;
+}
+.maintenance-window-main {
+	min-width: 0;
+}
+.maintenance-window-title {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.maintenance-window-title > strong {
+	font-size: 14px;
+	font-weight: 600;
+}
+.maintenance-disabled {
+	font-size: 11px;
+	color: var(--faint);
+}
+.maintenance-window-main > p {
+	margin: 7px 0 10px;
+	font:
+		500 12px/1.4 'IBM Plex Mono',
+		monospace;
+	color: #444;
+}
+.maintenance-window-main > p span {
+	color: var(--faint);
+}
+.maintenance-window-services {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.maintenance-window-services span {
+	padding: 4px 7px;
+	border: 1px solid #dedede;
+	border-radius: 5px;
+	font-size: 11px;
+	color: var(--muted);
+	background: #fafafa;
+}
+.maintenance-window-services em {
+	font-size: 11px;
+	font-style: normal;
+	color: var(--faint);
+}
+.maintenance-window-actions {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 6px;
+}
+.danger-icon-button {
+	color: #a74545;
+}
+.maintenance-form {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 20px 16px;
+	margin-top: 12px;
+}
+.maintenance-name,
+.maintenance-timezone,
+.maintenance-services,
+.maintenance-enabled,
+.maintenance-helper,
+.maintenance-actions {
+	grid-column: 1 / -1;
+}
+.maintenance-services {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.maintenance-services legend {
+	margin-bottom: 8px;
+	font-size: 13px;
+	font-weight: 500;
+	color: #353535;
+}
+.maintenance-service-select {
+	display: flex;
+	width: 100%;
+	min-height: 42px;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 8px 12px;
+	border: 1px solid #dedede;
+	border-radius: 6px;
+	font-size: 14px;
+	text-align: left;
+	color: var(--ink);
+	background: #fff;
+	box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.025);
+	cursor: pointer;
+	transition:
+		border-color 120ms ease,
+		box-shadow 120ms ease;
+}
+.maintenance-service-select:hover {
+	border-color: #aaa;
+}
+.maintenance-service-select:focus-visible,
+.maintenance-service-select[data-state='open'] {
+	border-color: var(--primary-deep);
+	outline: none;
+	box-shadow: 0 0 0 3px rgb(36 180 126 / 0.14);
+}
+.maintenance-service-select:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+.maintenance-service-select .is-placeholder {
+	color: var(--faint);
+}
+.maintenance-service-select-meta {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	color: var(--faint);
+}
+.maintenance-service-select-meta small {
+	font:
+		500 10px/1.3 'IBM Plex Mono',
+		monospace;
+	white-space: nowrap;
+}
+.maintenance-service-select-meta svg {
+	width: 16px;
+	height: 16px;
+	transition: transform 120ms ease;
+}
+.maintenance-service-select[data-state='open'] .maintenance-service-select-meta svg {
+	transform: rotate(180deg);
+}
+.maintenance-service-menu {
+	z-index: 70;
+	width: var(--radix-dropdown-menu-trigger-width);
+	max-height: min(256px, var(--radix-dropdown-menu-content-available-height));
+	overflow-y: auto;
+	padding: 4px;
+	border: 1px solid var(--hairline);
+	border-radius: 8px;
+	background: #fff;
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
+}
+.maintenance-service-option {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 36px;
+	padding: 7px 9px;
+	border-radius: 6px;
+	font-size: 13px;
+	color: var(--ink);
+	cursor: pointer;
+	outline: none;
+	user-select: none;
+}
+.maintenance-service-option:focus,
+.maintenance-service-option[data-highlighted] {
+	background: #f2f5f3;
+}
+.maintenance-service-check {
+	display: grid;
+	width: 17px;
+	height: 17px;
+	place-items: center;
+	flex: 0 0 auto;
+	border: 1px solid #cfcfcf;
+	border-radius: 4px;
+	color: #fff;
+	background: #fff;
+}
+.maintenance-service-option[data-state='checked'] .maintenance-service-check {
+	border-color: var(--primary-deep);
+	background: var(--primary-deep);
+}
+.maintenance-service-check svg {
+	width: 12px;
+	height: 12px;
+	stroke-width: 2.5;
+}
+.maintenance-services-empty {
+	display: block;
+	margin-top: 7px;
+	font-size: 11px;
+	color: var(--muted);
+}
+.maintenance-helper {
+	margin: -6px 0 0;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--muted);
+}
 .payload-preview {
 	margin-top: 18px;
 	padding: 24px 26px;
@@ -1539,6 +1765,126 @@ button {
 	background: #fff;
 	box-shadow: 0 14px 40px rgb(117 38 38 / 0.06);
 	animation: enter 500ms 45ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.scheduled-maintenance {
+	margin-top: 18px;
+	overflow: hidden;
+	border: 1px solid #c9d9ed;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 14px 40px rgb(49 93 151 / 0.06);
+	animation: enter 500ms 45ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.scheduled-maintenance-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	min-height: 92px;
+	padding: 18px 22px;
+	border-bottom: 1px solid #dce7f4;
+	background: linear-gradient(110deg, #f2f7fd 0%, #f8fbff 72%, #fff 100%);
+}
+.scheduled-maintenance-heading,
+.scheduled-maintenance-service {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+.scheduled-maintenance-icon {
+	display: grid;
+	width: 40px;
+	height: 40px;
+	place-items: center;
+	flex: 0 0 auto;
+	border: 1px solid rgb(63 111 184 / 0.2);
+	border-radius: 8px;
+	color: #3f6fb8;
+	background: rgb(255 255 255 / 0.82);
+}
+.scheduled-maintenance-icon svg {
+	width: 18px;
+	height: 18px;
+}
+.scheduled-maintenance-heading p {
+	margin: 0 0 3px;
+	font:
+		500 9px/1.3 'IBM Plex Mono',
+		monospace;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #5079b3;
+}
+.scheduled-maintenance-heading h2 {
+	margin: 0;
+	font-size: 17px;
+	font-weight: 600;
+	letter-spacing: -0.25px;
+	color: #29496f;
+}
+.scheduled-maintenance-count {
+	padding: 5px 8px;
+	border: 1px solid #cad9eb;
+	border-radius: 5px;
+	font:
+		500 9px/1.3 'IBM Plex Mono',
+		monospace;
+	color: #466b9c;
+	background: rgb(255 255 255 / 0.72);
+}
+.scheduled-maintenance-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	min-height: 88px;
+	padding: 18px 22px;
+}
+.scheduled-maintenance-row + .scheduled-maintenance-row {
+	border-top: 1px solid #e6edf6;
+}
+.scheduled-maintenance-service-icon {
+	display: grid;
+	flex: 0 0 36px;
+	width: 36px;
+	height: 36px;
+	place-items: center;
+	border: 1px solid #d8e1ed;
+	border-radius: 7px;
+	background: #f8fafd;
+}
+.scheduled-maintenance-service-icon img {
+	display: block;
+	width: 20px;
+	height: 20px;
+	object-fit: contain;
+}
+.scheduled-maintenance-service strong,
+.scheduled-maintenance-service div span {
+	display: block;
+}
+.scheduled-maintenance-service strong {
+	font-size: 13px;
+}
+.scheduled-maintenance-service div span {
+	margin-top: 4px;
+	font-size: 12px;
+	color: var(--muted);
+}
+.scheduled-maintenance-state {
+	font:
+		500 10px/1.4 'IBM Plex Mono',
+		monospace;
+	color: #3f6fb8;
+	white-space: nowrap;
+}
+.scheduled-maintenance-state i {
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	margin-right: 5px;
+	border-radius: 50%;
+	background: #5a8fd0;
 }
 .active-incidents-header {
 	display: flex;
@@ -2168,6 +2514,20 @@ button {
 	.settings-form {
 		padding: 20px;
 	}
+	.maintenance-panel-header,
+	.maintenance-window-row {
+		padding-right: 20px;
+		padding-left: 20px;
+	}
+	.maintenance-panel-header,
+	.maintenance-window-row {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+	.maintenance-window-actions {
+		align-self: flex-end;
+		margin-top: -48px;
+	}
 	.settings-actions {
 		align-items: stretch;
 		flex-direction: column-reverse;
@@ -2195,6 +2555,24 @@ button {
 		flex-direction: column;
 		gap: 14px;
 		padding: 18px 16px;
+	}
+	.scheduled-maintenance-header {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 14px;
+		padding: 18px 16px;
+	}
+	.scheduled-maintenance-count {
+		margin-left: 54px;
+	}
+	.scheduled-maintenance-row {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 14px;
+		padding: 18px 16px;
+	}
+	.scheduled-maintenance-state {
+		margin-left: 50px;
 	}
 	.active-incidents-count {
 		margin-left: 54px;

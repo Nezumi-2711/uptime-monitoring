@@ -9,8 +9,9 @@ type PublicStatusResponse = {
 	services: Array<{
 		id: number;
 		name: string;
-		status: 'up' | 'down' | 'unknown';
+		status: 'up' | 'down' | 'unknown' | 'maintenance';
 		message: string | null;
+		maintenance: { name: string; endsAt: string } | null;
 		lastCheckedAt: string | null;
 		uptime90d: number | null;
 		history: Array<{ day: number; uptimePct: number | null }>;
@@ -19,6 +20,8 @@ type PublicStatusResponse = {
 
 async function resetDatabase() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
+		env.DB.prepare('DELETE FROM maintenance_windows'),
 		env.DB.prepare('DELETE FROM checks'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
@@ -126,6 +129,28 @@ describe('public status API', () => {
 
 		const body = await (await statusFetch()).json<PublicStatusResponse>();
 		expect(body.overall).toBe('down');
+	});
+
+	it('shows active maintenance without degrading overall status', async () => {
+		const id = await insertMonitor({ name: 'Database', lastOk: false });
+		const now = new Date();
+		const startMinute = now.getUTCHours() * 60 + now.getUTCMinutes();
+		const result = await env.DB.prepare(
+			"INSERT INTO maintenance_windows (name, start_minute, duration_minutes, timezone, enabled, created_at, updated_at) VALUES ('Nightly backup', ?, 60, 'UTC', 1, ?, ?)",
+		)
+			.bind(startMinute, now.getTime(), now.getTime())
+			.run();
+		await env.DB.prepare('INSERT INTO maintenance_window_monitors (window_id, monitor_id) VALUES (?, ?)')
+			.bind(Number(result.meta.last_row_id), id)
+			.run();
+
+		const body = await (await statusFetch()).json<PublicStatusResponse>();
+		expect(body.overall).toBe('operational');
+		expect(body.services[0]).toMatchObject({
+			status: 'maintenance',
+			message: null,
+			maintenance: { name: 'Nightly backup' },
+		});
 	});
 
 	it("combines historical daily rollups and today's checks into 90-day uptime", async () => {

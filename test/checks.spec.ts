@@ -4,6 +4,8 @@ import { runDueChecks } from '../src/worker/checks/run-due-checks';
 
 async function clearMonitoringTables() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
+		env.DB.prepare('DELETE FROM maintenance_windows'),
 		env.DB.prepare('DELETE FROM checks'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),

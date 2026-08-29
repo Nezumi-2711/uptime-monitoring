@@ -7,7 +7,7 @@ export type IncidentTransition = 'opened' | 'resolved' | null;
 
 type BatchStatement = Parameters<Database['batch']>[0][number];
 
-export function buildResultStatements(db: Database, monitor: Monitor, result: CheckResult, checkedAt: Date) {
+export function buildResultStatements(db: Database, monitor: Monitor, result: CheckResult, checkedAt: Date, maintenance = false) {
 	const statements: BatchStatement[] = [
 		db.insert(checks).values({
 			monitorId: monitor.id,
@@ -16,11 +16,12 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 			latencyMs: result.latencyMs,
 			error: result.error,
 			checkedAt,
+			maintenance,
 		}),
 		db
 			.update(monitors)
 			.set({
-				lastOk: result.ok,
+				...(maintenance ? {} : { lastOk: result.ok }),
 				lastStatusCode: result.statusCode,
 				lastLatencyMs: result.latencyMs,
 				lastError: result.error,
@@ -29,6 +30,8 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 			})
 			.where(eq(monitors.id, monitor.id)),
 	];
+
+	if (maintenance) return { statements, transition: null };
 
 	let transition: IncidentTransition = null;
 	if (monitor.lastOk !== false && !result.ok) {

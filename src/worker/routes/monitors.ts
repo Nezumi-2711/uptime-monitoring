@@ -4,8 +4,9 @@ import { generateIncidentMessage } from '../ai/incident-message';
 import { buildResultStatements } from '../checks/persist-result';
 import { runCheck } from '../checks/run-check';
 import { getDb } from '../db/client';
-import { checks, incidents, monitors } from '../db/schema';
+import { checks, incidents, maintenanceWindowMonitors, monitors } from '../db/schema';
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
+import { loadActiveMaintenance } from '../maintenance/windows';
 import { isSafeRemoteUrl } from '../lib/safe-url';
 import { sendIncidentAlert } from '../notifications/webhook';
 
@@ -214,7 +215,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function parseInteger(
+export function parseInteger(
 	value: unknown,
 	name: string,
 	minimum: number,
@@ -381,7 +382,7 @@ monitorRoutes.get('/:id/stats', async (context) => {
 							avgLatencyMs: sql<number | null>`round(avg(${checks.latencyMs}))`,
 						})
 						.from(checks)
-						.where(and(eq(checks.monitorId, id), gte(checks.checkedAt, new Date(window.start))))
+						.where(and(eq(checks.monitorId, id), eq(checks.maintenance, false), gte(checks.checkedAt, new Date(window.start))))
 				: await db.select({
 						totalChecks: sql<number>`coalesce(sum(total_checks), 0)`,
 						upChecks: sql<number>`coalesce(sum(up_checks), 0)`,
@@ -393,7 +394,7 @@ monitorRoutes.get('/:id/stats', async (context) => {
 				union all
 				select count(*), coalesce(sum(case when ok = 1 then 1 else 0 end), 0), round(avg(latency_ms))
 				from checks
-				where monitor_id = ${id} and checked_at >= ${currentDayMs}
+				where monitor_id = ${id} and checked_at >= ${currentDayMs} and maintenance = 0
 			)`);
 			const [incidentAggregate] = await db
 				.select({ count: sql<number>`count(*)` })
@@ -512,7 +513,11 @@ monitorRoutes.delete('/:id', async (context) => {
 	const [monitor] = await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, id)).limit(1);
 	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 
-	await db.batch([db.delete(checks).where(eq(checks.monitorId, id)), db.delete(monitors).where(eq(monitors.id, id))]);
+	await db.batch([
+		db.delete(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.monitorId, id)),
+		db.delete(checks).where(eq(checks.monitorId, id)),
+		db.delete(monitors).where(eq(monitors.id, id)),
+	]);
 	return context.json({ ok: true });
 });
 
@@ -526,7 +531,8 @@ monitorRoutes.post('/:id/check', async (context) => {
 
 	const result = await runCheck(monitor);
 	const checkedAt = new Date();
-	const { statements, transition } = buildResultStatements(db, monitor, result, checkedAt);
+	const activeMaintenance = await loadActiveMaintenance(db, checkedAt);
+	const { statements, transition } = buildResultStatements(db, monitor, result, checkedAt, activeMaintenance.has(monitor.id));
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 	if (transition) {
 		await sendIncidentAlert(context.env, { monitor, kind: transition, result, at: checkedAt });

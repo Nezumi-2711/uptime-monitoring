@@ -1,7 +1,7 @@
 import { Activity, LogOut, Menu, Settings, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { navigate, usePathname } from '../lib/router';
 import { useLogoutMutation } from '../queries/auth';
 
@@ -51,33 +51,35 @@ export function AppHeader({ context }: { context?: string }) {
 					<span>upwatch</span>
 				</Button>
 
-				<nav className="nav-actions" aria-label="Primary navigation">
-					{context && <span className="header-context">{context}</span>}
-					{items.map((item) => {
-						const ItemIcon = item.icon;
-						const isCurrent = item.href === pathname;
+				<TooltipProvider>
+					<nav className="nav-actions" aria-label="Primary navigation">
+						{context && <span className="header-context">{context}</span>}
+						{items.map((item) => {
+							const ItemIcon = item.icon;
+							const isCurrent = item.href === pathname;
 
-						return (
-							<Tooltip key={item.label}>
-								<TooltipTrigger asChild>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="app-nav-icon"
-										type="button"
-										aria-label={item.label}
-										aria-current={isCurrent ? 'page' : undefined}
-										disabled={item.disabled}
-										onClick={item.onClick}
-									>
-										<ItemIcon aria-hidden="true" />
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent sideOffset={6}>{item.label}</TooltipContent>
-							</Tooltip>
-						);
-					})}
-				</nav>
+							return (
+								<Tooltip key={item.label}>
+									<TooltipTrigger asChild>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="app-nav-icon"
+											type="button"
+											aria-label={item.label}
+											aria-current={isCurrent ? 'page' : undefined}
+											disabled={item.disabled}
+											onClick={item.onClick}
+										>
+											<ItemIcon aria-hidden="true" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent sideOffset={6}>{item.label}</TooltipContent>
+								</Tooltip>
+							);
+						})}
+					</nav>
+				</TooltipProvider>
 
 				<div className="app-nav-mobile-trigger">
 					<Sheet>

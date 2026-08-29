@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { ArrowLeft, BellRing, Send, Sparkles } from 'lucide-react';
+import { ArrowLeft, BellRing, Send, Sparkles, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Empty, EmptyTitle } from '@/components/ui/empty';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { AiSettings, NotificationSettings } from '../api/settings';
 import { AppHeader } from '../components/AppHeader';
+import { MaintenanceWindowsPanel } from '../components/settings/MaintenanceWindowsPanel';
 import { navigate } from '../lib/router';
 import {
 	useAiSettingsQuery,
@@ -158,8 +159,8 @@ export function SettingsPage() {
 				</Button>
 				<section className="settings-heading">
 					<p className="overline">Integrations</p>
-					<h1>Notifications &amp; AI</h1>
-					<p>Configure incident alerts and visitor-friendly status updates from one place.</p>
+					<h1>Notifications, AI &amp; maintenance</h1>
+					<p>Configure incident alerts, visitor-friendly updates, and planned downtime from one place.</p>
 				</section>
 				<Card asChild>
 					<section className="settings-card">
@@ -205,6 +206,20 @@ export function SettingsPage() {
 						) : (
 							<AiSettingsForm key={aiSettingsQuery.data.settings.updatedAt ?? 'new'} settings={aiSettingsQuery.data.settings} />
 						)}
+					</section>
+				</Card>
+				<Card asChild>
+					<section className="settings-card maintenance-settings-card">
+						<div className="settings-card-intro">
+							<span>
+								<Wrench />
+							</span>
+							<div>
+								<h2>Maintenance windows</h2>
+								<p>Keep probing during planned work while suppressing alerts and excluding those checks from uptime.</p>
+							</div>
+						</div>
+						<MaintenanceWindowsPanel />
 					</section>
 				</Card>
 				<section className="payload-preview">
