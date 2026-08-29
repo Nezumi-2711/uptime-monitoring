@@ -1154,8 +1154,9 @@ button {
 	min-height: 330px;
 }
 .uptime-bar {
-	height: 132px;
-	padding: 28px 22px 14px;
+	height: 148px;
+	padding: 24px 22px 18px;
+	background: linear-gradient(180deg, #fcfefd 0%, #fff 100%);
 }
 .uptime-legend {
 	display: flex;
