@@ -1712,11 +1712,9 @@ button {
 	color: var(--muted);
 }
 .public-service-row {
-	display: grid;
-	grid-template-columns: minmax(190px, 0.7fr) 120px minmax(320px, 1.2fr);
-	align-items: center;
-	gap: 24px;
-	min-height: 128px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
 	padding: 22px;
 }
 .public-service-row + .public-service-row {
@@ -1725,28 +1723,41 @@ button {
 .public-service-row:hover {
 	background: #fdfefd;
 }
+.public-service-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
 .public-service-summary {
 	display: flex;
+	flex: 1 1 auto;
 	align-items: center;
 	gap: 14px;
 	min-width: 0;
 }
-.public-service-summary > div {
+.public-service-identity {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 20px;
 	min-width: 0;
 }
-.public-service-summary strong {
-	display: block;
+.public-service-identity strong {
+	min-width: 0;
 	overflow: hidden;
 	font-size: 15px;
 	font-weight: 500;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.public-service-summary .row-status {
-	margin-top: 7px;
+.public-service-identity [data-slot='badge'] {
+	flex: 0 0 auto;
 }
 .public-service-uptime {
+	flex: 0 0 auto;
 	text-align: right;
+	white-space: nowrap;
 }
 .public-service-uptime span {
 	display: block;
@@ -1762,6 +1773,7 @@ button {
 	letter-spacing: -0.5px;
 }
 .status-history {
+	width: 100%;
 	min-width: 0;
 }
 .uptime-days {
@@ -1773,7 +1785,7 @@ button {
 }
 .uptime-day {
 	flex: 1 1 0;
-	min-width: 1px;
+	min-width: 2px;
 	border-radius: 2px;
 	background: #e6e8e7;
 	transition:
@@ -1830,11 +1842,10 @@ button {
 	background: #fff;
 }
 .status-service-skeleton > div {
-	display: grid;
-	grid-template-columns: 42px 1fr minmax(240px, 0.8fr);
+	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 16px;
-	min-height: 116px;
 	padding: 22px;
 }
 .status-service-skeleton > div + div {
@@ -1858,6 +1869,7 @@ button {
 	height: 34px;
 }
 .status-service-skeleton b {
+	width: 100%;
 	height: 32px;
 }
 .status-footer {
@@ -2070,12 +2082,8 @@ button {
 		grid-column: 2;
 		justify-self: start;
 	}
-	.public-service-row {
-		grid-template-columns: 1fr auto;
-		gap: 20px;
-	}
-	.status-history {
-		grid-column: 1 / -1;
+	.uptime-days {
+		gap: 1px;
 	}
 }
 
@@ -2213,12 +2221,14 @@ button {
 	.public-service-row {
 		padding: 20px 16px;
 	}
+	.public-service-header {
+		gap: 12px;
+	}
 	.public-service-uptime strong {
 		font-size: 15px;
 	}
 	.uptime-days {
 		height: 28px;
-		gap: 1px;
 	}
 	.status-footer {
 		align-items: flex-start;

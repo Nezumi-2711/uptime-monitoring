@@ -101,7 +101,7 @@ export function StatusPage() {
 						</div>
 					</div>
 				) : statusQuery.isError || !status ? (
-					<Empty variant="error" className="mt-[42px] min-h-[280px] place-content-center p-12">
+					<Empty variant="error" className="mt-10.5 min-h-70 place-content-center p-12">
 						<EmptyMedia variant="icon">
 							<TriangleAlert />
 						</EmptyMedia>
@@ -197,20 +197,20 @@ export function StatusPage() {
 										const serviceStatus = SERVICE_STATUS[service.status];
 										return (
 											<article className="public-service-row" key={service.id}>
-												<div className="public-service-summary">
-													<span className="service-icon">
-														<SiteIcon monitorId={service.id} favicon="public" />
-													</span>
-													<div>
-														<strong>{service.name}</strong>
-														<Badge className="mt-1.75" variant={serviceStatus.className}>
-															{serviceStatus.label}
-														</Badge>
+												<div className="public-service-header">
+													<div className="public-service-summary">
+														<span className="service-icon">
+															<SiteIcon monitorId={service.id} favicon="public" />
+														</span>
+														<div className="public-service-identity">
+															<strong>{service.name}</strong>
+															<Badge variant={serviceStatus.className}>{serviceStatus.label}</Badge>
+														</div>
 													</div>
-												</div>
-												<div className="public-service-uptime">
-													<span>90-day uptime</span>
-													<strong>{service.uptime90d === null ? '—' : `${service.uptime90d.toFixed(1)}%`}</strong>
+													<div className="public-service-uptime">
+														<span>90-day uptime</span>
+														<strong>{service.uptime90d === null ? '—' : `${service.uptime90d.toFixed(1)}%`}</strong>
+													</div>
 												</div>
 												<StatusHistoryBar history={service.history} />
 											</article>
