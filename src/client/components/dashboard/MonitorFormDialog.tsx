@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from 'react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -16,7 +17,13 @@ export const DEFAULT_MONITOR_INPUT: MonitorInput = {
 	timeoutMs: 10_000,
 	retryCount: 1,
 	failureThreshold: 2,
+	expectKeyword: null,
+	keywordInverted: false,
+	requestHeaders: null,
+	requestBody: null,
+	degradedLatencyMs: null,
 	enabled: true,
+	alertsEnabled: true,
 };
 
 export const INTERVAL_OPTIONS = [
@@ -31,6 +38,17 @@ type MonitorFormDialogProps = {
 	editing: Monitor | null;
 	onClose: () => void;
 };
+
+type HeaderRow = { id: number; name: string; value: string };
+
+function headerRows(requestHeaders: string | null): HeaderRow[] {
+	if (!requestHeaders) return [];
+	try {
+		return Object.entries(JSON.parse(requestHeaders) as Record<string, string>).map(([name, value], index) => ({ id: index, name, value }));
+	} catch {
+		return [];
+	}
+}
 
 function errorMessage(error: unknown, fallback: string) {
 	return error instanceof Error ? error.message : fallback;
@@ -47,6 +65,11 @@ function monitorInput(monitor: Monitor | null): MonitorInput {
 		timeoutMs: monitor.timeoutMs,
 		retryCount: monitor.retryCount,
 		failureThreshold: monitor.failureThreshold,
+		expectKeyword: monitor.expectKeyword,
+		keywordInverted: monitor.keywordInverted,
+		requestHeaders: monitor.requestHeaders ? (JSON.parse(monitor.requestHeaders) as Record<string, string>) : null,
+		requestBody: monitor.requestBody,
+		degradedLatencyMs: monitor.degradedLatencyMs,
 		enabled: monitor.enabled,
 		alertsEnabled: monitor.alertsEnabled,
 	};
@@ -56,6 +79,8 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 	const createMutation = useCreateMonitorMutation();
 	const updateMutation = useUpdateMonitorMutation();
 	const [form, setForm] = useState<MonitorInput>(() => monitorInput(editing));
+	const [headers, setHeaders] = useState<HeaderRow[]>(() => headerRows(editing?.requestHeaders ?? null));
+	const [nextHeaderId, setNextHeaderId] = useState(() => headers.length);
 	const formMutation = editing ? updateMutation : createMutation;
 
 	function closeForm() {
@@ -65,11 +90,29 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 
 	function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		const requestHeaders = Object.fromEntries(
+			headers.filter((header) => header.name.trim()).map((header) => [header.name.trim(), header.value]),
+		);
+		const input: MonitorInput = {
+			...form,
+			expectKeyword: form.expectKeyword?.trim() || null,
+			requestHeaders: Object.keys(requestHeaders).length > 0 ? requestHeaders : null,
+			requestBody: form.method === 'POST' ? form.requestBody || null : null,
+		};
 		if (editing) {
-			updateMutation.mutate({ id: editing.id, input: form }, { onSuccess: onClose });
+			updateMutation.mutate({ id: editing.id, input }, { onSuccess: onClose });
 		} else {
-			createMutation.mutate(form, { onSuccess: onClose });
+			createMutation.mutate(input, { onSuccess: onClose });
 		}
+	}
+
+	function addHeader() {
+		setHeaders((current) => [...current, { id: nextHeaderId, name: '', value: '' }]);
+		setNextHeaderId((current) => current + 1);
+	}
+
+	function updateHeader(id: number, field: 'name' | 'value', value: string) {
+		setHeaders((current) => current.map((header) => (header.id === id ? { ...header, [field]: value } : header)));
 	}
 
 	return (
@@ -217,6 +260,109 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 						/>
 						<label htmlFor="monitor-alerts-enabled">Enable incident alerts</label>
 					</div>
+					<details className="monitor-advanced">
+						<summary>
+							<span>Advanced request and response checks</span>
+							<ChevronDown aria-hidden="true" />
+						</summary>
+						<div className="monitor-advanced-grid">
+							<label className="field advanced-keyword" htmlFor="monitor-keyword">
+								<span>Expected response keyword</span>
+								<Input
+									id="monitor-keyword"
+									value={form.expectKeyword ?? ''}
+									onChange={(event) => setForm({ ...form, expectKeyword: event.target.value || null })}
+									maxLength={200}
+									placeholder="healthy"
+								/>
+								<small>Case-insensitive match within the first 256 KB of the response.</small>
+							</label>
+							<div className="toggle-field advanced-inverted">
+								<Switch
+									id="monitor-keyword-inverted"
+									checked={form.keywordInverted ?? false}
+									onCheckedChange={(keywordInverted) => setForm({ ...form, keywordInverted })}
+									disabled={!form.expectKeyword}
+								/>
+								<label htmlFor="monitor-keyword-inverted">Fail when present</label>
+							</div>
+							<label className="field advanced-latency" htmlFor="monitor-degraded-latency">
+								<span>Degraded above (ms)</span>
+								<Input
+									id="monitor-degraded-latency"
+									type="number"
+									min="1"
+									max="30000"
+									value={form.degradedLatencyMs ?? ''}
+									onChange={(event) => setForm({ ...form, degradedLatencyMs: event.target.value ? event.target.valueAsNumber : null })}
+									placeholder="1500"
+								/>
+								<small>Publishes degraded performance after the configured confirmation count.</small>
+							</label>
+							<div className="advanced-headers">
+								<div className="advanced-section-heading">
+									<div>
+										<span>Request headers</span>
+										<small>Up to 10 headers. Restricted transport headers are blocked.</small>
+									</div>
+									<Button
+										variant="unstyled"
+										className="secondary-button header-add-button"
+										type="button"
+										onClick={addHeader}
+										disabled={headers.length >= 10}
+									>
+										<Plus aria-hidden="true" /> Add header
+									</Button>
+								</div>
+								{headers.length > 0 && (
+									<div className="header-rows">
+										{headers.map((header) => (
+											<div className="header-row" key={header.id}>
+												<Input
+													aria-label="Header name"
+													value={header.name}
+													onChange={(event) => updateHeader(header.id, 'name', event.target.value)}
+													maxLength={64}
+													placeholder="Authorization"
+												/>
+												<Input
+													aria-label="Header value"
+													value={header.value}
+													onChange={(event) => updateHeader(header.id, 'value', event.target.value)}
+													maxLength={512}
+													placeholder="Bearer …"
+												/>
+												<Button
+													variant="unstyled"
+													className="icon-button header-remove-button"
+													type="button"
+													aria-label={`Remove ${header.name || 'header'}`}
+													onClick={() => setHeaders((current) => current.filter((item) => item.id !== header.id))}
+												>
+													<Trash2 aria-hidden="true" />
+												</Button>
+											</div>
+										))}
+									</div>
+								)}
+							</div>
+							{form.method === 'POST' && (
+								<label className="field advanced-body" htmlFor="monitor-request-body">
+									<span>Request body</span>
+									<textarea
+										id="monitor-request-body"
+										value={form.requestBody ?? ''}
+										onChange={(event) => setForm({ ...form, requestBody: event.target.value || null })}
+										maxLength={8192}
+										rows={6}
+										placeholder={'{"query":"health"}'}
+									/>
+									<small>Sent with POST requests. JSON content type is added unless overridden above.</small>
+								</label>
+							)}
+						</div>
+					</details>
 					<div className="form-actions compact-actions">
 						<Button variant="unstyled" className="secondary-button" type="button" onClick={closeForm}>
 							Cancel

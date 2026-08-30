@@ -74,24 +74,45 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 	let aiMessagesQueued = 0;
 	const notificationBudget: NotificationBudget = { remaining: MAX_NOTIFICATIONS_PER_RUN };
 	const notifications = persisted.flatMap((item) => {
-		if (item.transition !== 'opened' && item.transition !== 'resolved') return [];
-		const kind: AlertTransition = item.transition;
-		const work: Promise<unknown>[] = [
-			dispatchNotification(
-				env,
-				{
-					monitor: { id: item.monitor.id, name: item.monitor.name, url: item.monitor.url },
-					kind: kind === 'opened' ? 'down' : 'recovered',
-					incidentId: null,
-					title: kind === 'opened' ? `${item.monitor.name} is down` : `${item.monitor.name} recovered`,
-					body: item.result.error,
-					statusCode: item.result.statusCode,
-					error: item.result.error,
-					at: item.checkedAt,
-				},
-				notificationBudget,
-			),
-		];
+		const work: Promise<unknown>[] = [];
+		if (item.transition === 'opened' || item.transition === 'resolved') {
+			const kind: AlertTransition = item.transition;
+			work.push(
+				dispatchNotification(
+					env,
+					{
+						monitor: { id: item.monitor.id, name: item.monitor.name, url: item.monitor.url },
+						kind: kind === 'opened' ? 'down' : 'recovered',
+						incidentId: null,
+						title: kind === 'opened' ? `${item.monitor.name} is down` : `${item.monitor.name} recovered`,
+						body: item.result.error,
+						statusCode: item.result.statusCode,
+						error: item.result.error,
+						at: item.checkedAt,
+					},
+					notificationBudget,
+				),
+			);
+		}
+		if (item.latencyTransition) {
+			const degraded = item.latencyTransition === 'degraded';
+			work.push(
+				dispatchNotification(
+					env,
+					{
+						monitor: { id: item.monitor.id, name: item.monitor.name, url: item.monitor.url },
+						kind: degraded ? 'degraded' : 'recovered_degraded',
+						incidentId: null,
+						title: degraded ? `${item.monitor.name} performance degraded` : `${item.monitor.name} performance recovered`,
+						body: degraded ? `Response time was ${item.result.latencyMs} ms.` : 'Response time returned to normal.',
+						statusCode: item.result.statusCode,
+						error: item.result.error,
+						at: item.checkedAt,
+					},
+					notificationBudget,
+				),
+			);
+		}
 		if (item.transition === 'opened' && item.monitor.alertsEnabled && aiMessagesQueued < MAX_AI_MESSAGES_PER_RUN) {
 			aiMessagesQueued += 1;
 			work.push(generateIncidentMessage(env, { monitor: item.monitor, result: item.result }));

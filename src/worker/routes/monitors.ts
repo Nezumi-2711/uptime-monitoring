@@ -8,6 +8,7 @@ import { checks, incidentMonitors, incidents, maintenanceWindowMonitors, monitor
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
 import { loadActiveMaintenance } from '../maintenance/windows';
 import { isSafeRemoteUrl } from '../lib/safe-url';
+import { readBodyLimited } from '../lib/read-body';
 import { dispatchNotification } from '../notifications/dispatch';
 
 type MonitorMethod = 'GET' | 'HEAD' | 'POST';
@@ -17,6 +18,11 @@ type ParsedMonitorInput = {
 	url?: string;
 	method?: MonitorMethod;
 	expectedStatus?: number;
+	expectKeyword?: string | null;
+	keywordInverted?: boolean;
+	requestHeaders?: string | null;
+	requestBody?: string | null;
+	degradedLatencyMs?: number | null;
 	intervalSeconds?: number;
 	timeoutMs?: number;
 	retryCount?: number;
@@ -33,6 +39,8 @@ const FAVICON_FETCH_TIMEOUT_MS = 5_000;
 const MAX_FAVICON_BYTES = 1024 * 1024;
 const MAX_HEAD_BYTES = 128 * 1024;
 const MAX_REDIRECTS = 3;
+const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,64}$/;
+const FORBIDDEN_HEADERS = new Set(['host', 'content-length', 'transfer-encoding', 'connection']);
 
 type FaviconResult = {
 	body: ArrayBuffer;
@@ -43,44 +51,6 @@ type EdgeCache = {
 	match(request: RequestInfo | URL): Promise<Response | undefined>;
 	put(request: RequestInfo | URL, response: Response): Promise<void>;
 };
-
-async function readBodyLimited(response: Response, maximum: number, truncate: boolean) {
-	if (!response.body) return null;
-	const reader = response.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-	let exceeded = false;
-
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			const remaining = maximum - total;
-			if (value.byteLength > remaining) {
-				if (truncate && remaining > 0) {
-					chunks.push(value.subarray(0, remaining));
-					total += remaining;
-				}
-				exceeded = true;
-				await reader.cancel();
-				break;
-			}
-			chunks.push(value);
-			total += value.byteLength;
-		}
-	} catch {
-		return null;
-	}
-
-	if (exceeded && !truncate) return null;
-	const body = new Uint8Array(total);
-	let offset = 0;
-	for (const chunk of chunks) {
-		body.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
-	return body.buffer;
-}
 
 async function fetchRemote(url: URL, maximumBytes: number, truncate = false) {
 	const controller = new AbortController();
@@ -232,7 +202,7 @@ export function parseInteger(
 	return { ok: true, value: value as number };
 }
 
-export function parseMonitorInput(body: unknown, partial = false): ParseResult {
+export function parseMonitorInput(body: unknown, partial = false, storedMethod?: MonitorMethod): ParseResult {
 	if (!isRecord(body)) return { ok: false, message: 'Invalid request body' };
 
 	const value: ParsedMonitorInput = {};
@@ -261,6 +231,55 @@ export function parseMonitorInput(body: unknown, partial = false): ParseResult {
 			return { ok: false, message: 'Method must be GET, HEAD, or POST' };
 		}
 		value.method = body.method as MonitorMethod;
+	}
+
+	if ('expectKeyword' in body) {
+		if (body.expectKeyword === null) value.expectKeyword = null;
+		else if (typeof body.expectKeyword !== 'string' || body.expectKeyword.trim().length < 1 || body.expectKeyword.trim().length > 200) {
+			return { ok: false, message: 'expectKeyword must be between 1 and 200 characters or null' };
+		} else value.expectKeyword = body.expectKeyword.trim();
+	}
+	if ('keywordInverted' in body) {
+		if (typeof body.keywordInverted !== 'boolean') return { ok: false, message: 'keywordInverted must be a boolean' };
+		value.keywordInverted = body.keywordInverted;
+	}
+	if ('requestHeaders' in body) {
+		if (body.requestHeaders === null) value.requestHeaders = null;
+		else if (!isRecord(body.requestHeaders)) return { ok: false, message: 'requestHeaders must be an object or null' };
+		else {
+			const entries = Object.entries(body.requestHeaders);
+			if (entries.length > 10) return { ok: false, message: 'requestHeaders cannot contain more than 10 headers' };
+			const normalized: Record<string, string> = {};
+			for (const [name, headerValue] of entries) {
+				const lowerName = name.toLowerCase();
+				if (!HEADER_NAME.test(name)) return { ok: false, message: `Invalid header name: ${name}` };
+				if (FORBIDDEN_HEADERS.has(lowerName) || lowerName.startsWith('cf-')) {
+					return { ok: false, message: `Header is not allowed: ${name}` };
+				}
+				if (typeof headerValue !== 'string' || headerValue.length > 512 || /[\r\n]/.test(headerValue)) {
+					return { ok: false, message: `Invalid value for header: ${name}` };
+				}
+				normalized[name] = headerValue;
+			}
+			value.requestHeaders = JSON.stringify(normalized);
+		}
+	}
+	if ('requestBody' in body) {
+		if (body.requestBody === null) value.requestBody = null;
+		else if (typeof body.requestBody !== 'string' || body.requestBody.length > 8_192) {
+			return { ok: false, message: 'requestBody must be no more than 8192 characters or null' };
+		} else value.requestBody = body.requestBody;
+		if (value.requestBody !== null && (value.method ?? storedMethod) !== 'POST') {
+			return { ok: false, message: 'requestBody can only be used with POST monitors' };
+		}
+	}
+	if ('degradedLatencyMs' in body) {
+		if (body.degradedLatencyMs === null) value.degradedLatencyMs = null;
+		else {
+			const parsed = parseInteger(body.degradedLatencyMs, 'degradedLatencyMs', 1, 30_000);
+			if (!parsed.ok) return parsed;
+			value.degradedLatencyMs = parsed.value;
+		}
 	}
 
 	for (const [key, label, minimum, maximum] of [
@@ -504,6 +523,11 @@ monitorRoutes.post('/', async (context) => {
 			url: parsed.value.url!,
 			method: parsed.value.method!,
 			expectedStatus: parsed.value.expectedStatus!,
+			expectKeyword: parsed.value.expectKeyword ?? null,
+			keywordInverted: parsed.value.keywordInverted ?? false,
+			requestHeaders: parsed.value.requestHeaders ?? null,
+			requestBody: parsed.value.requestBody ?? null,
+			degradedLatencyMs: parsed.value.degradedLatencyMs ?? null,
 			intervalSeconds: parsed.value.intervalSeconds!,
 			timeoutMs: parsed.value.timeoutMs!,
 			retryCount: parsed.value.retryCount ?? 1,
@@ -521,6 +545,9 @@ monitorRoutes.post('/', async (context) => {
 monitorRoutes.patch('/:id', async (context) => {
 	const id = parseId(context.req.param('id'));
 	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
+	const db = getDb(context.env);
+	const [existing] = await db.select({ method: monitors.method }).from(monitors).where(eq(monitors.id, id)).limit(1);
+	if (!existing) return context.json({ message: 'Monitor not found' }, 404);
 
 	let body: unknown;
 	try {
@@ -529,13 +556,13 @@ monitorRoutes.patch('/:id', async (context) => {
 		return context.json({ message: 'Invalid request body' }, 400);
 	}
 
-	const parsed = parseMonitorInput(body, true);
+	const parsed = parseMonitorInput(body, true, existing.method as MonitorMethod);
 	if (!parsed.ok) return context.json({ message: parsed.message }, 400);
 	if (Object.keys(parsed.value).length === 0) {
 		return context.json({ message: 'Provide at least one field to update' }, 400);
 	}
 
-	const [monitor] = await getDb(context.env)
+	const [monitor] = await db
 		.update(monitors)
 		.set({ ...parsed.value, updatedAt: new Date() })
 		.where(eq(monitors.id, id))
@@ -573,7 +600,13 @@ monitorRoutes.post('/:id/check', async (context) => {
 	const result = await runCheckWithRetries(monitor);
 	const checkedAt = new Date();
 	const activeMaintenance = await loadActiveMaintenance(db, checkedAt);
-	const { statements, transition } = buildResultStatements(db, monitor, result, checkedAt, activeMaintenance.has(monitor.id));
+	const { statements, transition, latencyTransition } = buildResultStatements(
+		db,
+		monitor,
+		result,
+		checkedAt,
+		activeMaintenance.has(monitor.id),
+	);
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 	if (transition === 'opened' || transition === 'resolved') {
 		await dispatchNotification(context.env, {
@@ -590,9 +623,22 @@ monitorRoutes.post('/:id/check', async (context) => {
 			await generateIncidentMessage(context.env, { monitor, result });
 		}
 	}
+	if (latencyTransition) {
+		const degraded = latencyTransition === 'degraded';
+		await dispatchNotification(context.env, {
+			monitor: { id: monitor.id, name: monitor.name, url: monitor.url },
+			kind: degraded ? 'degraded' : 'recovered_degraded',
+			incidentId: null,
+			title: degraded ? `${monitor.name} performance degraded` : `${monitor.name} performance recovered`,
+			body: degraded ? `Response time was ${result.latencyMs} ms.` : 'Response time returned to normal.',
+			statusCode: result.statusCode,
+			error: result.error,
+			at: checkedAt,
+		});
+	}
 	const [updated] = await db.select().from(monitors).where(eq(monitors.id, monitor.id)).limit(1);
 
-	return context.json({ result, transition, monitor: updated });
+	return context.json({ result, transition, latencyTransition, monitor: updated });
 });
 
 export default monitorRoutes;

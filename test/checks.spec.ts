@@ -27,12 +27,19 @@ async function insertMonitor(overrides: Record<string, unknown> = {}) {
 		url: 'https://example.com/health',
 		method: 'GET',
 		expected_status: 200,
+		expect_keyword: null,
+		keyword_inverted: 0,
+		request_headers: null,
+		request_body: null,
+		degraded_latency_ms: null,
 		interval_seconds: 300,
 		timeout_ms: 10_000,
 		retry_count: 0,
 		failure_threshold: 2,
 		consecutive_failures: 0,
+		consecutive_slow: 0,
 		enabled: 1,
+		last_degraded: 0,
 		last_checked_at: null,
 		created_at: now,
 		updated_at: now,
@@ -41,9 +48,10 @@ async function insertMonitor(overrides: Record<string, unknown> = {}) {
 	const result = await env.DB.prepare(
 		`
 		INSERT INTO monitors
-		(name, url, method, expected_status, interval_seconds, timeout_ms, retry_count, failure_threshold,
-		 consecutive_failures, enabled, alerts_enabled, last_ok, last_checked_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+		(name, url, method, expected_status, expect_keyword, keyword_inverted, request_headers, request_body,
+		 degraded_latency_ms, interval_seconds, timeout_ms, retry_count, failure_threshold, consecutive_failures,
+		 consecutive_slow, enabled, alerts_enabled, last_ok, last_degraded, last_checked_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
 	`,
 	)
 		.bind(
@@ -51,13 +59,20 @@ async function insertMonitor(overrides: Record<string, unknown> = {}) {
 			values.url,
 			values.method,
 			values.expected_status,
+			values.expect_keyword,
+			values.keyword_inverted,
+			values.request_headers,
+			values.request_body,
+			values.degraded_latency_ms,
 			values.interval_seconds,
 			values.timeout_ms,
 			values.retry_count,
 			values.failure_threshold,
 			values.consecutive_failures,
+			values.consecutive_slow,
 			values.enabled,
 			overrides.last_ok ?? null,
+			values.last_degraded,
 			values.last_checked_at,
 			values.created_at,
 			values.updated_at,
@@ -98,6 +113,98 @@ describe('scheduled monitor checks', () => {
 			.bind(id)
 			.first<{ count: number }>();
 		expect(checkCount?.count).toBe(1);
+	});
+
+	it('passes a case-insensitive keyword assertion and sends configured request data', async () => {
+		await insertMonitor({
+			method: 'POST',
+			expect_keyword: 'healthy',
+			request_headers: JSON.stringify({ Authorization: 'Bearer test' }),
+			request_body: '{"probe":true}',
+		});
+		const fetchMock = vi.fn(async () => new Response('{"status":"HEALTHY"}', { status: 200 }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const summary = await runDueChecks(env);
+		expect(summary.up).toBe(1);
+		const init = fetchMock.mock.calls[0][1] as RequestInit;
+		expect(init.method).toBe('POST');
+		expect(init.body).toBe('{"probe":true}');
+		expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test');
+		expect(new Headers(init.headers).get('Content-Type')).toBe('application/json');
+	});
+
+	it('fails and opens an incident when the expected keyword is absent', async () => {
+		const id = await insertMonitor({ last_ok: 1, expect_keyword: 'healthy' });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('{"status":"error"}', { status: 200 })),
+		);
+
+		await runDueChecks(env);
+		await env.DB.prepare('UPDATE monitors SET last_checked_at = NULL WHERE id = ?').bind(id).run();
+		const summary = await runDueChecks(env);
+
+		expect(summary.opened).toBe(1);
+		const check = await env.DB.prepare('SELECT ok, error FROM checks WHERE monitor_id = ? ORDER BY id DESC LIMIT 1')
+			.bind(id)
+			.first<{ ok: number; error: string }>();
+		expect(check).toEqual({ ok: 0, error: 'Response did not contain "healthy"' });
+	});
+
+	it('supports inverted keyword assertions and safely truncates large bodies', async () => {
+		await insertMonitor({ expect_keyword: 'maintenance', keyword_inverted: 1 });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(`${'a'.repeat(256 * 1024)}maintenance`, { status: 200 })),
+		);
+
+		const summary = await runDueChecks(env);
+		expect(summary.up).toBe(1);
+		expect((await env.DB.prepare('SELECT ok FROM checks').first<{ ok: number }>())?.ok).toBe(1);
+	});
+
+	it('confirms degraded latency, notifies, and recovers on a fast check', async () => {
+		const id = await insertMonitor({ last_ok: 1, degraded_latency_ms: 1, failure_threshold: 2 });
+		const now = Date.now();
+		await env.DB.prepare(
+			`INSERT INTO notification_channels (name, type, config, enabled, notify_manual, created_at, updated_at)
+			 VALUES ('Webhook', 'webhook', '{"url":"https://hooks.example.test/events"}', 1, 1, ?, ?)`,
+		)
+			.bind(now, now)
+			.run();
+		const events: string[] = [];
+		let slow = true;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				if (new URL(input.toString()).hostname === 'hooks.example.test') {
+					events.push((JSON.parse(String(init?.body)) as { event: string }).event);
+					return new Response(null, { status: 204 });
+				}
+				if (slow) await new Promise((resolve) => setTimeout(resolve, 5));
+				return new Response(null, { status: 200 });
+			}),
+		);
+
+		await runDueChecks(env);
+		await env.DB.prepare('UPDATE monitors SET last_checked_at = NULL WHERE id = ?').bind(id).run();
+		await runDueChecks(env);
+		expect(events).toEqual(['degraded']);
+		expect(
+			await env.DB.prepare('SELECT last_degraded, consecutive_slow FROM monitors WHERE id = ?')
+				.bind(id)
+				.first<{ last_degraded: number; consecutive_slow: number }>(),
+		).toEqual({ last_degraded: 1, consecutive_slow: 2 });
+		expect((await env.DB.prepare('SELECT degraded FROM checks ORDER BY id DESC LIMIT 1').first<{ degraded: number }>())?.degraded).toBe(1);
+
+		slow = false;
+		await env.DB.prepare('UPDATE monitors SET last_checked_at = NULL, degraded_latency_ms = 30000 WHERE id = ?').bind(id).run();
+		await runDueChecks(env);
+		expect(events).toEqual(['degraded', 'recovered_degraded']);
+		expect(
+			(await env.DB.prepare('SELECT last_degraded FROM monitors WHERE id = ?').bind(id).first<{ last_degraded: number }>())?.last_degraded,
+		).toBe(0);
 	});
 
 	it('records a first mismatched status as pending without opening an incident', async () => {

@@ -8,6 +8,11 @@ export type Monitor = {
 	url: string;
 	method: MonitorMethod;
 	expectedStatus: number;
+	expectKeyword: string | null;
+	keywordInverted: boolean;
+	requestHeaders: string | null;
+	requestBody: string | null;
+	degradedLatencyMs: number | null;
 	intervalSeconds: number;
 	timeoutMs: number;
 	enabled: boolean;
@@ -15,7 +20,9 @@ export type Monitor = {
 	retryCount: number;
 	failureThreshold: number;
 	consecutiveFailures: number;
+	consecutiveSlow: number;
 	lastOk: boolean | null;
+	lastDegraded: boolean;
 	lastStatusCode: number | null;
 	lastLatencyMs: number | null;
 	lastError: string | null;
@@ -29,6 +36,11 @@ export type MonitorInput = {
 	url: string;
 	method: MonitorMethod;
 	expectedStatus: number;
+	expectKeyword?: string | null;
+	keywordInverted?: boolean;
+	requestHeaders?: Record<string, string> | null;
+	requestBody?: string | null;
+	degradedLatencyMs?: number | null;
 	intervalSeconds: number;
 	timeoutMs: number;
 	retryCount?: number;
@@ -39,6 +51,7 @@ export type MonitorInput = {
 
 export type CheckResult = {
 	ok: boolean;
+	degraded: boolean;
 	statusCode: number | null;
 	latencyMs: number;
 	error: string | null;
@@ -49,6 +62,7 @@ export type Check = {
 	id: number;
 	monitorId: number;
 	ok: boolean;
+	degraded: boolean;
 	statusCode: number | null;
 	latencyMs: number;
 	error: string | null;
@@ -57,6 +71,7 @@ export type Check = {
 };
 
 export type CheckTransition = 'opened' | 'pending' | 'cleared' | 'resolved' | null;
+export type LatencyTransition = 'degraded' | 'recovered' | null;
 
 export type Incident = {
 	id: number;
@@ -122,5 +137,7 @@ export function deleteMonitor(id: number) {
 }
 
 export function runMonitorCheck(id: number) {
-	return postJson<{ result: CheckResult; transition: CheckTransition; monitor: Monitor }>(`/api/monitors/${id}/check`);
+	return postJson<{ result: CheckResult; transition: CheckTransition; latencyTransition: LatencyTransition; monitor: Monitor }>(
+		`/api/monitors/${id}/check`,
+	);
 }

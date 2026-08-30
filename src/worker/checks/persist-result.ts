@@ -7,6 +7,7 @@ import type { CheckResult, Monitor } from './run-check';
 /** Only opened and resolved transitions are allowed to send alerts. */
 export type CheckTransition = 'opened' | 'pending' | 'cleared' | 'resolved' | null;
 export type AlertTransition = Extract<CheckTransition, 'opened' | 'resolved'>;
+export type LatencyTransition = 'degraded' | 'recovered' | null;
 
 type BatchStatement = Parameters<Database['batch']>[0][number];
 
@@ -15,6 +16,7 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 		db.insert(checks).values({
 			monitorId: monitor.id,
 			ok: result.ok,
+			degraded: result.degraded,
 			statusCode: result.statusCode,
 			latencyMs: result.latencyMs,
 			error: result.error,
@@ -36,7 +38,12 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 				})
 				.where(eq(monitors.id, monitor.id)),
 		);
-		return { statements, transition: null as CheckTransition, consecutiveFailures: monitor.consecutiveFailures };
+		return {
+			statements,
+			transition: null as CheckTransition,
+			latencyTransition: null as LatencyTransition,
+			consecutiveFailures: monitor.consecutiveFailures,
+		};
 	}
 
 	const threshold = Math.max(1, monitor.failureThreshold);
@@ -44,9 +51,13 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 	// This deliberately uses the monitor snapshot. Concurrent manual and scheduled checks may lose one increment,
 	// which delays confirmation by one check but cannot publish a false incident.
 	const nextFailures = result.ok ? 0 : previousFailures + 1;
+	const nextSlow = result.degraded ? monitor.consecutiveSlow + 1 : 0;
 	const wasDown = monitor.lastOk === false;
 	const isDown = !result.ok && nextFailures >= threshold;
 	const confirmed = result.ok ? true : isDown ? false : undefined;
+	const confirmedDegraded = nextSlow >= threshold;
+	const latencyTransition: LatencyTransition =
+		!monitor.lastDegraded && confirmedDegraded ? 'degraded' : monitor.lastDegraded && !confirmedDegraded ? 'recovered' : null;
 
 	statements.push(
 		db
@@ -54,6 +65,8 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 			.set({
 				...(confirmed === undefined ? {} : { lastOk: confirmed }),
 				consecutiveFailures: nextFailures,
+				consecutiveSlow: nextSlow,
+				lastDegraded: confirmedDegraded,
 				lastStatusCode: result.statusCode,
 				lastLatencyMs: result.latencyMs,
 				lastError: result.error,
@@ -114,5 +127,5 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 	} else if (!wasDown && !result.ok) transition = 'pending';
 	else if (!wasDown && result.ok && previousFailures > 0) transition = 'cleared';
 
-	return { statements, transition, consecutiveFailures: nextFailures };
+	return { statements, transition, latencyTransition, consecutiveFailures: nextFailures };
 }

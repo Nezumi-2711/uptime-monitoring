@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { deterministicIncidentMessage } from '../ai/fallback-message';
+import { DEGRADED_MESSAGE, deterministicIncidentMessage } from '../ai/fallback-message';
 import { getDb } from '../db/client';
 import { checks, incidentMonitors, incidents, incidentUpdates, monitorDailyStats, monitors } from '../db/schema';
 import { loadActiveMaintenance, type ActiveMaintenance } from '../maintenance/windows';
@@ -8,7 +8,7 @@ import { resolveFavicon } from './monitors';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FAVICON_CACHE_SECONDS = 86_400;
-type ServiceStatus = 'up' | 'down' | 'unknown' | 'maintenance';
+type ServiceStatus = 'up' | 'degraded' | 'down' | 'unknown' | 'maintenance';
 type OverallStatus = 'operational' | 'degraded' | 'down';
 type DailyAggregate = { monitorId: number; day: Date; totalChecks: number; upChecks: number };
 type EdgeCache = {
@@ -41,8 +41,8 @@ function parseLimit(raw: string | undefined, fallback: number, maximum: number) 
 function roundUptime(upChecks: number, totalChecks: number) {
 	return totalChecks > 0 ? Math.round((upChecks / totalChecks) * 1_000) / 10 : null;
 }
-function serviceStatus(lastOk: boolean | null): ServiceStatus {
-	if (lastOk === true) return 'up';
+function serviceStatus(lastOk: boolean | null, lastDegraded: boolean): ServiceStatus {
+	if (lastOk === true) return lastDegraded ? 'degraded' : 'up';
 	if (lastOk === false) return 'down';
 	return 'unknown';
 }
@@ -55,6 +55,7 @@ function overallStatus(statuses: ServiceStatus[], manualImpacts: string[]): Over
 		if (status === 'down') down += 1;
 	}
 	let severity = down === 0 ? 0 : down === checked ? 2 : 1;
+	if (statuses.includes('degraded')) severity = Math.max(severity, 1);
 	for (const impact of manualImpacts)
 		severity = Math.max(severity, impact === 'critical' ? 2 : impact === 'minor' || impact === 'major' ? 1 : 0);
 	return severity === 2 ? 'down' : severity === 1 ? 'degraded' : 'operational';
@@ -117,6 +118,7 @@ statusRoutes.get('/', async (context) => {
 			id: monitors.id,
 			name: monitors.name,
 			lastOk: monitors.lastOk,
+			lastDegraded: monitors.lastDegraded,
 			lastStatusCode: monitors.lastStatusCode,
 			lastCheckedAt: monitors.lastCheckedAt,
 		})
@@ -197,13 +199,15 @@ statusRoutes.get('/', async (context) => {
 		return {
 			id: monitor.id,
 			name: monitor.name,
-			status: maintenance ? ('maintenance' as const) : serviceStatus(monitor.lastOk),
+			status: maintenance ? ('maintenance' as const) : serviceStatus(monitor.lastOk, monitor.lastDegraded),
 			message:
 				!maintenance && monitor.lastOk === false
 					? incident
 						? (latestUpdates.get(incident.id)?.body ?? deterministicIncidentMessage(incident.startStatusCode))
 						: deterministicIncidentMessage(monitor.lastStatusCode)
-					: null,
+					: !maintenance && monitor.lastOk === true && monitor.lastDegraded
+						? DEGRADED_MESSAGE
+						: null,
 			maintenance: maintenance ? { name: maintenance.name, endsAt: maintenance.endsAt.toISOString() } : null,
 			lastCheckedAt: monitor.lastCheckedAt?.toISOString() ?? null,
 			uptime90d: roundUptime(upChecks, totalChecks),

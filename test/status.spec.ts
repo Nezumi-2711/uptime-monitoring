@@ -1,6 +1,7 @@
 import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env, exports as worker } from 'cloudflare:workers';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { DEGRADED_MESSAGE } from '../src/worker/ai/fallback-message';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -10,7 +11,7 @@ type PublicStatusResponse = {
 	services: Array<{
 		id: number;
 		name: string;
-		status: 'up' | 'down' | 'unknown' | 'maintenance';
+		status: 'up' | 'degraded' | 'down' | 'unknown' | 'maintenance';
 		message: string | null;
 		maintenance: { name: string; endsAt: string } | null;
 		lastCheckedAt: string | null;
@@ -46,15 +47,16 @@ async function insertMonitor(input: {
 	lastError?: string | null;
 	consecutiveFailures?: number;
 	failureThreshold?: number;
+	lastDegraded?: boolean;
 }) {
 	const now = Date.now();
 	const result = await env.DB.prepare(
 		`
 		INSERT INTO monitors (
 			name, url, method, expected_status, interval_seconds, timeout_ms,
-			enabled, alerts_enabled, failure_threshold, consecutive_failures, last_ok, last_status_code, last_latency_ms,
+			enabled, alerts_enabled, failure_threshold, consecutive_failures, last_ok, last_degraded, last_status_code, last_latency_ms,
 			last_error, last_checked_at, created_at, updated_at
-		) VALUES (?, ?, 'GET', 200, 300, 10000, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, 'GET', 200, 300, 10000, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 	)
 		.bind(
@@ -64,6 +66,7 @@ async function insertMonitor(input: {
 			input.failureThreshold ?? 2,
 			input.consecutiveFailures ?? 0,
 			input.lastOk === null || input.lastOk === undefined ? null : input.lastOk ? 1 : 0,
+			input.lastDegraded ? 1 : 0,
 			input.lastStatusCode ?? null,
 			input.lastLatencyMs ?? null,
 			input.lastError ?? null,
@@ -137,6 +140,14 @@ describe('public status API', () => {
 		const body = await (await statusFetch()).json<PublicStatusResponse>();
 		expect(body.overall).toBe('operational');
 		expect(body.services[0]).toMatchObject({ status: 'up', message: null });
+	});
+
+	it('reports a confirmed degraded monitor and public latency message', async () => {
+		await insertMonitor({ name: 'Slow API', lastOk: true, lastDegraded: true, lastLatencyMs: 2200 });
+
+		const body = await (await statusFetch()).json<PublicStatusResponse>();
+		expect(body.overall).toBe('degraded');
+		expect(body.services[0]).toMatchObject({ status: 'degraded', message: DEGRADED_MESSAGE });
 	});
 
 	it('excludes disabled monitors and reports degraded health for a partial outage', async () => {

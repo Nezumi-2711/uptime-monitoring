@@ -1,13 +1,34 @@
 import type { monitors } from '../db/schema';
+import { readBodyLimited } from '../lib/read-body';
 
 export type Monitor = typeof monitors.$inferSelect;
 
 export type CheckResult = {
 	ok: boolean;
+	degraded: boolean;
 	statusCode: number | null;
 	latencyMs: number;
 	error: string | null;
 };
+
+export const MAX_BODY_MATCH_BYTES = 256 * 1024;
+
+function requestHeaders(monitor: Monitor) {
+	let configured: Record<string, string> = {};
+	if (monitor.requestHeaders) {
+		try {
+			configured = JSON.parse(monitor.requestHeaders) as Record<string, string>;
+		} catch {
+			// Stored values are API-validated. Ignore malformed legacy values instead of failing the check.
+		}
+	}
+	const headers = new Headers(configured);
+	if (!headers.has('User-Agent')) headers.set('User-Agent', 'Upwatch/1.0 (+uptime monitor)');
+	if (monitor.method === 'POST' && monitor.requestBody !== null && !headers.has('Content-Type')) {
+		headers.set('Content-Type', 'application/json');
+	}
+	return headers;
+}
 
 export async function runCheck(monitor: Monitor): Promise<CheckResult> {
 	const startedAt = Date.now();
@@ -16,19 +37,37 @@ export async function runCheck(monitor: Monitor): Promise<CheckResult> {
 			method: monitor.method,
 			redirect: 'follow',
 			signal: AbortSignal.timeout(monitor.timeoutMs),
-			headers: { 'User-Agent': 'Upwatch/1.0 (+uptime monitor)' },
+			headers: requestHeaders(monitor),
+			body: monitor.method === 'POST' ? monitor.requestBody : undefined,
 		});
-		await response.body?.cancel();
-		const ok = response.status === monitor.expectedStatus;
+		const latencyMs = Date.now() - startedAt;
+		const statusOk = response.status === monitor.expectedStatus;
+		let keywordOk = true;
+		if (monitor.expectKeyword !== null && monitor.method !== 'HEAD') {
+			const body = await readBodyLimited(response, MAX_BODY_MATCH_BYTES, true);
+			const contains =
+				body !== null && new TextDecoder().decode(body).toLocaleLowerCase().includes(monitor.expectKeyword.toLocaleLowerCase());
+			keywordOk = monitor.keywordInverted ? !contains : contains;
+		} else {
+			await response.body?.cancel();
+		}
+		const ok = statusOk && keywordOk;
+		let error: string | null = null;
+		if (!statusOk) error = `Expected HTTP ${monitor.expectedStatus}, received ${response.status}`;
+		else if (!keywordOk) {
+			error = `${monitor.keywordInverted ? 'Response contained' : 'Response did not contain'} "${monitor.expectKeyword}"`.slice(0, 200);
+		}
 		return {
 			ok,
+			degraded: ok && monitor.degradedLatencyMs !== null && latencyMs > monitor.degradedLatencyMs,
 			statusCode: response.status,
-			latencyMs: Date.now() - startedAt,
-			error: ok ? null : `Expected HTTP ${monitor.expectedStatus}, received ${response.status}`,
+			latencyMs,
+			error,
 		};
 	} catch (error) {
 		return {
 			ok: false,
+			degraded: false,
 			statusCode: null,
 			latencyMs: Date.now() - startedAt,
 			error: error instanceof Error ? error.message.slice(0, 200) : 'Request failed',

@@ -46,6 +46,11 @@ export const monitors = sqliteTable(
 		url: text('url').notNull(),
 		method: text('method').notNull().default('GET'),
 		expectedStatus: integer('expected_status').notNull().default(200),
+		expectKeyword: text('expect_keyword'),
+		keywordInverted: integer('keyword_inverted', { mode: 'boolean' }).notNull().default(false),
+		requestHeaders: text('request_headers'),
+		requestBody: text('request_body'),
+		degradedLatencyMs: integer('degraded_latency_ms'),
 		intervalSeconds: integer('interval_seconds').notNull().default(300),
 		timeoutMs: integer('timeout_ms').notNull().default(10_000),
 		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
@@ -56,8 +61,12 @@ export const monitors = sqliteTable(
 		failureThreshold: integer('failure_threshold').notNull().default(2),
 		/** Failures since the last successful check. Maintenance checks do not change this value. */
 		consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+		/** Slow successful checks since latency last recovered. Maintenance checks do not change this value. */
+		consecutiveSlow: integer('consecutive_slow').notNull().default(0),
 		/** Confirmed state, not the raw latest result. */
 		lastOk: integer('last_ok', { mode: 'boolean' }),
+		/** Confirmed degraded state. A down monitor is never degraded. */
+		lastDegraded: integer('last_degraded', { mode: 'boolean' }).notNull().default(false),
 		lastStatusCode: integer('last_status_code'),
 		lastLatencyMs: integer('last_latency_ms'),
 		lastError: text('last_error'),
@@ -112,6 +121,7 @@ export const checks = sqliteTable(
 		error: text('error'),
 		checkedAt: integer('checked_at', { mode: 'timestamp_ms' }).notNull(),
 		maintenance: integer('maintenance', { mode: 'boolean' }).notNull().default(false),
+		degraded: integer('degraded', { mode: 'boolean' }).notNull().default(false),
 	},
 	(table) => [index('checks_monitor_id_checked_at_idx').on(table.monitorId, table.checkedAt)],
 );

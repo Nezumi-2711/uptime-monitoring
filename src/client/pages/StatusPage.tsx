@@ -27,6 +27,7 @@ const OVERALL_COPY: Record<PublicOverallStatus, { title: string; detail: string 
 
 const SERVICE_STATUS: Record<PublicServiceStatus, { label: string; className: BadgeVariant }> = {
 	up: { label: 'Operational', className: 'online' },
+	degraded: { label: 'Degraded performance', className: 'pending' },
 	down: { label: 'Down', className: 'offline' },
 	unknown: { label: 'Awaiting data', className: 'checking' },
 	maintenance: { label: 'Under maintenance', className: 'maintenance' },

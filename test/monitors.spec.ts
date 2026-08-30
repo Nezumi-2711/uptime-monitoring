@@ -180,6 +180,15 @@ describe('monitor API', () => {
 		[{ retryCount: 4 }, 'retryCount must be an integer between 0 and 3'],
 		[{ failureThreshold: 0 }, 'failureThreshold must be an integer between 1 and 10'],
 		[{ failureThreshold: 11 }, 'failureThreshold must be an integer between 1 and 10'],
+		[{ requestHeaders: { Authorization: 'Bearer ok\r\nX-Evil: true' } }, 'Invalid value for header: Authorization'],
+		[{ requestHeaders: { Host: 'example.test' } }, 'Header is not allowed: Host'],
+		[
+			{ requestHeaders: Object.fromEntries(Array.from({ length: 11 }, (_, index) => [`X-${index}`, 'value'])) },
+			'requestHeaders cannot contain more than 10 headers',
+		],
+		[{ requestBody: '{}' }, 'requestBody can only be used with POST monitors'],
+		[{ degradedLatencyMs: 0 }, 'degradedLatencyMs must be an integer between 1 and 30000'],
+		[{ degradedLatencyMs: 30_001 }, 'degradedLatencyMs must be an integer between 1 and 30000'],
 	] as const)('rejects invalid monitor input %o', async (overrides, message) => {
 		const response = await createMonitor(await authenticatedCookie(), overrides);
 		expect(response.status).toBe(400);
@@ -207,6 +216,32 @@ describe('monitor API', () => {
 			retryCount: 3,
 			failureThreshold: 4,
 		});
+	});
+
+	it('stores advanced settings and allows nullable fields to be cleared', async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (
+			await createMonitor(cookie, {
+				method: 'POST',
+				expectKeyword: 'healthy',
+				keywordInverted: true,
+				requestHeaders: { Authorization: 'Bearer test' },
+				requestBody: '{"probe":true}',
+				degradedLatencyMs: 1500,
+			})
+		).json<{ monitor: { id: number; requestHeaders: string } }>();
+		expect(JSON.parse(created.monitor.requestHeaders)).toEqual({ Authorization: 'Bearer test' });
+
+		const response = await apiFetch(`/api/monitors/${created.monitor.id}`, 'PATCH', cookie, {
+			expectKeyword: null,
+			requestHeaders: null,
+			requestBody: null,
+			degradedLatencyMs: null,
+		});
+		const body = await response.json<{
+			monitor: { expectKeyword: null; requestHeaders: null; requestBody: null; degradedLatencyMs: null };
+		}>();
+		expect(body.monitor).toMatchObject({ expectKeyword: null, requestHeaders: null, requestBody: null, degradedLatencyMs: null });
 	});
 
 	it('does not allow clients to set the internal failure counter', async () => {

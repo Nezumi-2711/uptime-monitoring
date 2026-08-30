@@ -12,7 +12,7 @@ type UptimeDatum = {
 	id: string;
 	successfulChecks: number;
 	totalChecks: number;
-	status: 'up' | 'down';
+	status: 'up' | 'degraded' | 'down';
 	fill: string;
 };
 
@@ -20,6 +20,7 @@ const MAX_VISIBLE_SEGMENTS = 32;
 
 const uptimeConfig = {
 	up: { label: 'Up', color: 'var(--primary)' },
+	degraded: { label: 'Degraded', color: 'var(--chart-degraded)' },
 	down: { label: 'Down', color: 'var(--chart-down)' },
 } satisfies ChartConfig;
 
@@ -58,6 +59,8 @@ function groupChecks(checks: Check[]): UptimeDatum[] {
 		const last = bucket[bucket.length - 1];
 		const successfulChecks = bucket.filter((check) => check.ok).length;
 		const ok = successfulChecks === bucket.length;
+		const degraded = ok && bucket.some((check) => check.degraded);
+		const status = !ok ? 'down' : degraded ? 'degraded' : 'up';
 
 		return {
 			startTime: first.checkedAt,
@@ -67,8 +70,8 @@ function groupChecks(checks: Check[]): UptimeDatum[] {
 			id: `${first.id}-${last.id}`,
 			successfulChecks,
 			totalChecks: bucket.length,
-			status: ok ? 'up' : 'down',
-			fill: ok ? 'var(--color-up)' : 'var(--color-down)',
+			status,
+			fill: `var(--color-${status})`,
 		};
 	});
 }
@@ -114,7 +117,7 @@ export function UptimeBar({ checks }: { checks: Check[] }) {
 							onAnimationEnd={() => setHasAnimated(true)}
 						>
 							{data.map((point) => (
-								<Cell key={point.id} fill={point.ok ? 'var(--color-up)' : 'var(--color-down)'} />
+								<Cell key={point.id} fill={point.fill} />
 							))}
 						</Bar>
 					</BarChart>
@@ -123,7 +126,7 @@ export function UptimeBar({ checks }: { checks: Check[] }) {
 			<div className="uptime-legend">
 				<span>Oldest</span>
 				<span>
-					<i className="legend-up" /> Up <i className="legend-down" /> Down
+					<i className="legend-up" /> Up <i className="legend-degraded" /> Degraded <i className="legend-down" /> Down
 				</span>
 				<span>Latest</span>
 			</div>

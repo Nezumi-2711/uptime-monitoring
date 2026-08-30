@@ -8,7 +8,7 @@ export type TelegramConfig = { botToken: string; chatId: string };
 export type ChannelConfig = UrlConfig | TelegramConfig;
 
 export type NotificationEvent = {
-	kind: 'down' | 'recovered' | 'manual_opened' | 'manual_update' | 'test';
+	kind: 'down' | 'recovered' | 'degraded' | 'recovered_degraded' | 'manual_opened' | 'manual_update' | 'test';
 	monitor: { id: number; name: string; url: string } | null;
 	incidentId: number | null;
 	title: string;
@@ -49,6 +49,8 @@ export function eventLabel(kind: NotificationEvent['kind']) {
 	return {
 		down: 'Service down',
 		recovered: 'Service recovered',
+		degraded: 'Service degraded',
+		recovered_degraded: 'Performance recovered',
 		manual_opened: 'Incident opened',
 		manual_update: 'Incident update',
 		test: 'Test notification',
@@ -57,6 +59,7 @@ export function eventLabel(kind: NotificationEvent['kind']) {
 
 export function eventColor(kind: NotificationEvent['kind']) {
 	if (kind === 'down' || kind === 'manual_opened') return '#dc2626';
-	if (kind === 'recovered') return '#16a34a';
+	if (kind === 'recovered' || kind === 'recovered_degraded') return '#16a34a';
+	if (kind === 'degraded') return '#d97706';
 	return '#2563eb';
 }
