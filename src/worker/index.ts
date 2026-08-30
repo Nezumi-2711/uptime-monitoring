@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { csrf } from 'hono/csrf';
 import { runDueChecks } from './checks/run-due-checks';
 import authRoutes from './routes/auth';
+import channelRoutes from './routes/channels';
 import incidentRoutes from './routes/incidents';
 import maintenanceRoutes from './routes/maintenance';
 import monitorRoutes from './routes/monitors';
@@ -27,6 +28,7 @@ app.get('/api/health', async (context) => {
 });
 
 app.route('/', authRoutes);
+app.route('/api/channels', channelRoutes);
 app.route('/api/incidents', incidentRoutes);
 app.route('/api/maintenance', maintenanceRoutes);
 app.route('/api/monitors', monitorRoutes);

@@ -28,7 +28,9 @@ async function resetDatabase() {
 		env.DB.prepare('DELETE FROM incident_monitors'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
-		env.DB.prepare('DELETE FROM notification_settings'),
+		env.DB.prepare('DELETE FROM notification_deliveries'),
+		env.DB.prepare('DELETE FROM notification_channel_monitors'),
+		env.DB.prepare('DELETE FROM notification_channels'),
 		env.DB.prepare('DELETE FROM monitors'),
 	]);
 }

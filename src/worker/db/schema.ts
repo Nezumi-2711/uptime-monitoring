@@ -7,14 +7,6 @@ export const adminCredentials = sqliteTable('admin_credentials', {
 	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
-export const notificationSettings = sqliteTable('notification_settings', {
-	id: integer('id').primaryKey(),
-	webhookUrl: text('webhook_url'),
-	webhookEnabled: integer('webhook_enabled', { mode: 'boolean' }).notNull().default(false),
-	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-});
-
 export const aiSettings = sqliteTable('ai_settings', {
 	id: integer('id').primaryKey(),
 	enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
@@ -170,6 +162,56 @@ export const incidentUpdates = sqliteTable(
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 	},
 	(table) => [index('incident_updates_incident_id_created_at_idx').on(table.incidentId, table.createdAt)],
+);
+
+export const notificationChannels = sqliteTable(
+	'notification_channels',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		name: text('name').notNull(),
+		type: text('type').notNull(),
+		config: text('config').notNull(),
+		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+		notifyManual: integer('notify_manual', { mode: 'boolean' }).notNull().default(true),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) => [index('notification_channels_enabled_idx').on(table.enabled)],
+);
+
+export const notificationChannelMonitors = sqliteTable(
+	'notification_channel_monitors',
+	{
+		channelId: integer('channel_id')
+			.notNull()
+			.references(() => notificationChannels.id, { onDelete: 'cascade' }),
+		monitorId: integer('monitor_id')
+			.notNull()
+			.references(() => monitors.id, { onDelete: 'cascade' }),
+	},
+	(table) => [
+		primaryKey({ columns: [table.channelId, table.monitorId] }),
+		index('notification_channel_monitors_monitor_id_idx').on(table.monitorId),
+	],
+);
+
+export const notificationDeliveries = sqliteTable(
+	'notification_deliveries',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		channelId: integer('channel_id')
+			.notNull()
+			.references(() => notificationChannels.id, { onDelete: 'cascade' }),
+		incidentId: integer('incident_id').references(() => incidents.id, { onDelete: 'cascade' }),
+		monitorId: integer('monitor_id').references(() => monitors.id, { onDelete: 'cascade' }),
+		event: text('event').notNull(),
+		ok: integer('ok', { mode: 'boolean' }).notNull(),
+		statusCode: integer('status_code'),
+		error: text('error'),
+		attempts: integer('attempts').notNull().default(1),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) => [index('notification_deliveries_channel_id_created_at_idx').on(table.channelId, table.createdAt)],
 );
 
 export const monitorDailyStats = sqliteTable(

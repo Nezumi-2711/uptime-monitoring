@@ -4,6 +4,7 @@ import { IncidentDraftError, draftIncidentUpdate, type IncidentStatus } from '..
 import { getDb, type Database } from '../db/client';
 import { incidentMonitors, incidents, incidentUpdates, monitors } from '../db/schema';
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
+import { dispatchNotification } from '../notifications/dispatch';
 import { parseInteger } from './monitors';
 
 const STATUSES = new Set<IncidentStatus>(['investigating', 'identified', 'monitoring', 'resolved']);
@@ -227,6 +228,18 @@ incidentRoutes.post('/', async (context) => {
 	const results = await context.env.DB.batch(statements);
 	const id = Number(results[0].meta.last_row_id);
 	const incident = await loadIncident(db, id);
+	context.executionCtx.waitUntil(
+		dispatchNotification(context.env, {
+			kind: 'manual_opened',
+			monitor: null,
+			incidentId: id,
+			title: parsed.value.title!,
+			body: parsed.value.body!,
+			statusCode: null,
+			error: null,
+			at: new Date(now),
+		}),
+	);
 	return context.json({ incident }, 201);
 });
 
@@ -328,6 +341,18 @@ incidentRoutes.post('/:id/updates', async (context) => {
 			})
 			.where(eq(incidents.id, id)),
 	]);
+	context.executionCtx.waitUntil(
+		dispatchNotification(context.env, {
+			kind: resolved ? 'recovered' : 'manual_update',
+			monitor: null,
+			incidentId: id,
+			title: existing.title ?? `Incident ${id}`,
+			body: parsed.value.body,
+			statusCode: null,
+			error: null,
+			at: now,
+		}),
+	);
 	return context.json({ incident: await loadIncident(db, id) });
 });
 

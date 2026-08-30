@@ -1,75 +1,16 @@
 import { type FormEvent, useState } from 'react';
-import { ArrowLeft, BellRing, Send, Sparkles, Wrench } from 'lucide-react';
+import { ArrowLeft, BellRing, Sparkles, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Empty, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import type { AiSettings, NotificationSettings } from '../api/settings';
+import type { AiSettings } from '../api/settings';
 import { AppHeader } from '../components/AppHeader';
 import { MaintenanceWindowsPanel } from '../components/settings/MaintenanceWindowsPanel';
+import { NotificationChannelsPanel } from '../components/settings/NotificationChannelsPanel';
 import { navigate } from '../lib/router';
-import {
-	useAiSettingsQuery,
-	useNotificationSettingsQuery,
-	useTestAiSettingsMutation,
-	useTestNotificationWebhookMutation,
-	useUpdateAiSettingsMutation,
-	useUpdateNotificationSettingsMutation,
-} from '../queries/settings';
-
-function SettingsForm({ settings }: { settings: NotificationSettings }) {
-	const [webhookUrl, setWebhookUrl] = useState(settings.webhookUrl ?? '');
-	const [webhookEnabled, setWebhookEnabled] = useState(settings.webhookEnabled);
-	const updateMutation = useUpdateNotificationSettingsMutation();
-	const testMutation = useTestNotificationWebhookMutation();
-
-	function submit(event: FormEvent) {
-		event.preventDefault();
-		updateMutation.mutate({ webhookUrl: webhookUrl.trim() || null, webhookEnabled });
-	}
-
-	return (
-		<form className="settings-form" onSubmit={submit}>
-			<label className="field" htmlFor="webhook-url">
-				<span>Webhook URL</span>
-				<Input
-					id="webhook-url"
-					type="url"
-					value={webhookUrl}
-					onChange={(event) => setWebhookUrl(event.target.value)}
-					placeholder="https://hooks.example.com/services/…"
-				/>
-			</label>
-			<div className="settings-toggle">
-				<Switch id="webhook-enabled" checked={webhookEnabled} onCheckedChange={setWebhookEnabled} />
-				<label htmlFor="webhook-enabled">
-					<strong>Enable incident alerts</strong>
-					<small>Send a webhook when a monitor goes down and when it recovers.</small>
-				</label>
-			</div>
-			<div className="settings-actions">
-				<Button
-					variant="unstyled"
-					className="secondary-button"
-					type="button"
-					onClick={() => testMutation.mutate()}
-					disabled={!settings.webhookUrl || testMutation.isPending}
-				>
-					<Send /> {testMutation.isPending ? 'Sending…' : 'Send test'}
-				</Button>
-				<Button variant="unstyled" className="primary-button" type="submit" disabled={updateMutation.isPending}>
-					{updateMutation.isPending ? 'Saving…' : 'Save settings'}
-				</Button>
-			</div>
-			{updateMutation.isSuccess && <p className="settings-success">Notification settings saved.</p>}
-			{testMutation.isSuccess && <p className="settings-success">Test webhook delivered successfully.</p>}
-			{(updateMutation.isError || testMutation.isError) && (
-				<p className="form-error">{(updateMutation.error ?? testMutation.error)?.message ?? 'Request failed'}</p>
-			)}
-		</form>
-	);
-}
+import { useAiSettingsQuery, useTestAiSettingsMutation, useUpdateAiSettingsMutation } from '../queries/settings';
 
 function AiSettingsForm({ settings }: { settings: AiSettings }) {
 	const [baseUrl, setBaseUrl] = useState(settings.baseUrl ?? 'https://api.openai.com/v1');
@@ -148,7 +89,6 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
 }
 
 export function SettingsPage() {
-	const settingsQuery = useNotificationSettingsQuery();
 	const aiSettingsQuery = useAiSettingsQuery();
 	return (
 		<div className="dashboard-shell">
@@ -169,19 +109,11 @@ export function SettingsPage() {
 								<BellRing />
 							</span>
 							<div>
-								<h2>Incident webhook</h2>
-								<p>Upwatch sends a compact JSON payload for down and recovery events. Delivery failures never interrupt monitoring.</p>
+								<h2>Notification channels</h2>
+								<p>Route incidents to Slack, Discord, Telegram, or existing webhook integrations, with delivery history.</p>
 							</div>
 						</div>
-						{settingsQuery.isPending ? (
-							<div className="table-empty">Loading settings…</div>
-						) : settingsQuery.isError ? (
-							<Empty variant="error" className="m-6">
-								<EmptyTitle>Unable to load notification settings</EmptyTitle>
-							</Empty>
-						) : (
-							<SettingsForm key={settingsQuery.data.settings.updatedAt ?? 'new'} settings={settingsQuery.data.settings} />
-						)}
+						<NotificationChannelsPanel />
 					</section>
 				</Card>
 				<Card asChild>
@@ -222,16 +154,6 @@ export function SettingsPage() {
 						<MaintenanceWindowsPanel />
 					</section>
 				</Card>
-				<section className="payload-preview">
-					<p className="overline">Payload preview</p>
-					<pre>{`{
-  "event": "down",
-  "monitor": { "id": 12, "name": "API", "url": "https://api.example.com" },
-  "statusCode": 500,
-  "error": "Expected HTTP 200, received 500",
-  "at": "2026-08-28T03:25:00.000Z"
-}`}</pre>
-				</section>
 			</main>
 		</div>
 	);

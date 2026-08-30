@@ -57,6 +57,13 @@
       "when": 1788057318682,
       "tag": "0007_true_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788059207578,
+      "tag": "0008_aromatic_chat",
+      "breakpoints": true
     }
   ]
 }

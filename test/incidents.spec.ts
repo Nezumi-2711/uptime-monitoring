@@ -6,6 +6,9 @@ import { hashPassword } from '../src/worker/lib/password';
 const PASSWORD = 'correct-horse-battery-staple';
 async function reset() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM notification_deliveries'),
+		env.DB.prepare('DELETE FROM notification_channel_monitors'),
+		env.DB.prepare('DELETE FROM notification_channels'),
 		env.DB.prepare('DELETE FROM incident_updates'),
 		env.DB.prepare('DELETE FROM incident_monitors'),
 		env.DB.prepare('DELETE FROM incidents'),

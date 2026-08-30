@@ -13,7 +13,9 @@ async function clearMonitoringTables() {
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
 		env.DB.prepare('DELETE FROM ai_settings'),
-		env.DB.prepare('DELETE FROM notification_settings'),
+		env.DB.prepare('DELETE FROM notification_deliveries'),
+		env.DB.prepare('DELETE FROM notification_channel_monitors'),
+		env.DB.prepare('DELETE FROM notification_channels'),
 		env.DB.prepare('DELETE FROM monitors'),
 	]);
 }
@@ -225,7 +227,8 @@ describe('scheduled monitor checks', () => {
 		const now = Date.now();
 		await env.DB.batch([
 			env.DB.prepare(
-				"INSERT INTO notification_settings (id, webhook_url, webhook_enabled, created_at, updated_at) VALUES (1, 'https://hooks.example.test/events', 1, ?, ?)",
+				`INSERT INTO notification_channels (name, type, config, enabled, notify_manual, created_at, updated_at)
+				 VALUES ('Legacy webhook', 'webhook', '{"url":"https://hooks.example.test/events"}', 1, 1, ?, ?)`,
 			).bind(now, now),
 			env.DB.prepare(
 				"INSERT INTO ai_settings (id, enabled, base_url, api_key, model, created_at, updated_at) VALUES (1, 1, 'https://ai.example.test/v1', 'secret', 'test-model', ?, ?)",

@@ -8,7 +8,7 @@ import { checks, incidentMonitors, incidents, maintenanceWindowMonitors, monitor
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
 import { loadActiveMaintenance } from '../maintenance/windows';
 import { isSafeRemoteUrl } from '../lib/safe-url';
-import { sendIncidentAlert } from '../notifications/webhook';
+import { dispatchNotification } from '../notifications/dispatch';
 
 type MonitorMethod = 'GET' | 'HEAD' | 'POST';
 
@@ -576,7 +576,16 @@ monitorRoutes.post('/:id/check', async (context) => {
 	const { statements, transition } = buildResultStatements(db, monitor, result, checkedAt, activeMaintenance.has(monitor.id));
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 	if (transition === 'opened' || transition === 'resolved') {
-		await sendIncidentAlert(context.env, { monitor, kind: transition, result, at: checkedAt });
+		await dispatchNotification(context.env, {
+			monitor: { id: monitor.id, name: monitor.name, url: monitor.url },
+			kind: transition === 'opened' ? 'down' : 'recovered',
+			incidentId: null,
+			title: transition === 'opened' ? `${monitor.name} is down` : `${monitor.name} recovered`,
+			body: result.error,
+			statusCode: result.statusCode,
+			error: result.error,
+			at: checkedAt,
+		});
 		if (transition === 'opened') {
 			await generateIncidentMessage(context.env, { monitor, result });
 		}
