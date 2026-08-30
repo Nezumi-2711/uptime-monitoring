@@ -47,12 +47,15 @@ export type Check = CheckResult & {
 
 export type Incident = {
 	id: number;
-	monitorId: number;
+	title: string | null;
+	status: string;
+	impact: string;
+	source: string;
 	startedAt: string;
 	resolvedAt: string | null;
 	startStatusCode: number | null;
 	startError: string | null;
-	aiMessage: string | null;
+	latestUpdate: { body: string; status: string; createdAt: number } | null;
 	durationMs: number | null;
 	createdAt: string;
 	updatedAt: string;

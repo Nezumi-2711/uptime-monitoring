@@ -1,9 +1,10 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { CheckResult, Monitor } from '../checks/run-check';
 import { getDb } from '../db/client';
-import { aiSettings, incidents } from '../db/schema';
+import { aiSettings } from '../db/schema';
 import { requestCompletion } from './client';
 import { buildIncidentContext } from './incident-context';
+import { sanitizePublicText } from './sanitize';
 
 export const INCIDENT_MESSAGE_SYSTEM_PROMPT = [
 	"You write short public status updates for a website's visitors.",
@@ -21,20 +22,7 @@ export const INCIDENT_MESSAGE_SYSTEM_PROMPT = [
 ].join('\n');
 
 export function sanitizeIncidentMessage(value: string): string | null {
-	const message = value
-		.replace(/\r/g, '')
-		.trim()
-		.replace(/^(?:message|update|status)\s*:\s*/i, '')
-		.replace(/^(["'])([\s\S]*)\1$/, '$2')
-		.replace(/\s+/g, ' ')
-		.trim()
-		.slice(0, 280);
-	if (!message) return null;
-	// Reject anything that leaked a technical detail past the prompt.
-	if (/https?:\/\//i.test(message)) return null;
-	if (/\b(?:\d{1,3}\.){3}\d{1,3}\b/.test(message)) return null;
-	if (/\bHTTP[\s/]?\d{3}\b/i.test(message) || /\b[45]\d{2}\s+(?:error|status|response)\b/i.test(message)) return null;
-	return message;
+	return sanitizePublicText(value, 280);
 }
 
 export async function generateIncidentMessage(env: Env, input: { monitor: Monitor; result: CheckResult }): Promise<string | null> {
@@ -53,10 +41,18 @@ export async function generateIncidentMessage(env: Env, input: { monitor: Monito
 		const message = sanitizeIncidentMessage(content);
 		if (!message) return null;
 
-		await db
-			.update(incidents)
-			.set({ aiMessage: message, updatedAt: new Date() })
-			.where(and(eq(incidents.monitorId, input.monitor.id), isNull(incidents.resolvedAt)));
+		await env.DB.prepare(
+			`INSERT INTO incident_updates (incident_id, status, body, source, created_at)
+			 SELECT i.id, 'investigating', ?, 'ai', ?
+			 FROM incidents i
+			 JOIN incident_monitors im ON im.incident_id = i.id
+			 WHERE im.monitor_id = ? AND i.source = 'auto' AND i.resolved_at IS NULL
+			   AND NOT EXISTS (
+			     SELECT 1 FROM incident_updates iu WHERE iu.incident_id = i.id AND iu.source = 'ai'
+			   )`,
+		)
+			.bind(message, Date.now(), input.monitor.id)
+			.run();
 		return message;
 	} catch (error) {
 		console.warn(

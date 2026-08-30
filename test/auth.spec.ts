@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, SELF, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env, exports as worker } from 'cloudflare:workers';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { hashPassword } from '../src/worker/lib/password';
 
@@ -18,7 +19,7 @@ async function seedAdmin() {
 }
 
 function login(password = ADMIN_PASSWORD, ipAddress = '198.51.100.10') {
-	return SELF.fetch('https://example.com/api/auth/login', {
+	return worker.default.fetch('https://example.com/api/auth/login', {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -65,12 +66,12 @@ describe('authentication', () => {
 	});
 
 	it('returns authentication state from the session endpoint', async () => {
-		const anonymousResponse = await SELF.fetch('https://example.com/api/auth/me');
+		const anonymousResponse = await worker.default.fetch('https://example.com/api/auth/me');
 		expect(anonymousResponse.status).toBe(200);
 		expect(await anonymousResponse.json()).toEqual({ authenticated: false });
 
 		const loginResponse = await login();
-		const authenticatedResponse = await SELF.fetch('https://example.com/api/auth/me', {
+		const authenticatedResponse = await worker.default.fetch('https://example.com/api/auth/me', {
 			headers: { Cookie: cookieFrom(loginResponse) },
 		});
 
@@ -81,7 +82,7 @@ describe('authentication', () => {
 	it('revokes the persisted session on logout', async () => {
 		const loginResponse = await login();
 		const cookie = cookieFrom(loginResponse);
-		const logoutResponse = await SELF.fetch('https://example.com/api/auth/logout', {
+		const logoutResponse = await worker.default.fetch('https://example.com/api/auth/logout', {
 			method: 'POST',
 			headers: {
 				Cookie: cookie,
@@ -94,7 +95,7 @@ describe('authentication', () => {
 		const sessionCount = await env.DB.prepare('SELECT COUNT(*) AS count FROM sessions').first<{ count: number }>();
 		expect(sessionCount?.count).toBe(0);
 
-		const sessionResponse = await SELF.fetch('https://example.com/api/auth/me', {
+		const sessionResponse = await worker.default.fetch('https://example.com/api/auth/me', {
 			headers: { Cookie: cookie },
 		});
 		expect(await sessionResponse.json()).toEqual({ authenticated: false });

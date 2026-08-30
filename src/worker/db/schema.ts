@@ -121,19 +121,48 @@ export const incidents = sqliteTable(
 	'incidents',
 	{
 		id: integer('id').primaryKey({ autoIncrement: true }),
-		monitorId: integer('monitor_id')
-			.notNull()
-			.references(() => monitors.id, { onDelete: 'cascade' }),
+		title: text('title'),
+		status: text('status').notNull().default('investigating'),
+		impact: text('impact').notNull().default('major'),
+		source: text('source').notNull().default('auto'),
 		startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
 		resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' }),
 		startStatusCode: integer('start_status_code'),
 		startError: text('start_error'),
-		aiMessage: text('ai_message'),
 		durationMs: integer('duration_ms'),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 	},
-	(table) => [index('incidents_monitor_id_started_at_idx').on(table.monitorId, table.startedAt)],
+	(table) => [index('incidents_started_at_idx').on(table.startedAt), index('incidents_resolved_at_idx').on(table.resolvedAt)],
+);
+
+export const incidentMonitors = sqliteTable(
+	'incident_monitors',
+	{
+		incidentId: integer('incident_id')
+			.notNull()
+			.references(() => incidents.id, { onDelete: 'cascade' }),
+		monitorId: integer('monitor_id')
+			.notNull()
+			.references(() => monitors.id, { onDelete: 'cascade' }),
+	},
+	(table) => [primaryKey({ columns: [table.incidentId, table.monitorId] }), index('incident_monitors_monitor_id_idx').on(table.monitorId)],
+);
+
+export const incidentUpdates = sqliteTable(
+	'incident_updates',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		incidentId: integer('incident_id')
+			.notNull()
+			.references(() => incidents.id, { onDelete: 'cascade' }),
+		status: text('status').notNull(),
+		body: text('body').notNull(),
+		note: text('note'),
+		source: text('source').notNull().default('manual'),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) => [index('incident_updates_incident_id_created_at_idx').on(table.incidentId, table.createdAt)],
 );
 
 export const monitorDailyStats = sqliteTable(

@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runDueChecks } from '../src/worker/checks/run-due-checks';
 import type { MaintenanceWindowRow } from '../src/worker/maintenance/windows';
@@ -23,6 +24,8 @@ async function resetDatabase() {
 		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
 		env.DB.prepare('DELETE FROM maintenance_windows'),
 		env.DB.prepare('DELETE FROM checks'),
+		env.DB.prepare('DELETE FROM incident_updates'),
+		env.DB.prepare('DELETE FROM incident_monitors'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
 		env.DB.prepare('DELETE FROM notification_settings'),
@@ -82,7 +85,7 @@ describe('maintenance windows', () => {
 		await runDueChecks(env);
 		const check = await env.DB.prepare('SELECT maintenance, ok FROM checks WHERE monitor_id = ?').bind(id).first();
 		const monitor = await env.DB.prepare('SELECT last_ok, last_status_code FROM monitors WHERE id = ?').bind(id).first();
-		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incidents WHERE monitor_id = ?')
+		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
 			.bind(id)
 			.first<{ count: number }>();
 		expect(check).toMatchObject({ maintenance: 1, ok: 0 });
@@ -101,7 +104,7 @@ describe('maintenance windows', () => {
 
 		await runDueChecks(env);
 		const check = await env.DB.prepare('SELECT maintenance FROM checks WHERE monitor_id = ?').bind(id).first();
-		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incidents WHERE monitor_id = ?')
+		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
 			.bind(id)
 			.first<{ count: number }>();
 		expect(check).toMatchObject({ maintenance: 0 });

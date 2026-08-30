@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, SELF, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env, exports as worker } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deterministicIncidentMessage } from '../src/worker/ai/fallback-message';
 import { generateIncidentMessage } from '../src/worker/ai/incident-message';
@@ -36,6 +37,8 @@ const failedResult = {
 async function resetDatabase() {
 	await env.DB.batch([
 		env.DB.prepare('DELETE FROM checks'),
+		env.DB.prepare('DELETE FROM incident_updates'),
+		env.DB.prepare('DELETE FROM incident_monitors'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
 		env.DB.prepare('DELETE FROM ai_settings'),
@@ -59,10 +62,18 @@ async function seedMonitorAndIncident(aiMessage: string | null = null) {
 		.bind(monitor.name, monitor.url, monitor.lastError, now, now, now)
 		.run();
 	await env.DB.prepare(
-		'INSERT INTO incidents (monitor_id, started_at, resolved_at, start_status_code, start_error, ai_message, duration_ms, created_at, updated_at) VALUES (1, ?, NULL, 503, ?, ?, NULL, ?, ?)',
+		"INSERT INTO incidents (id, status, impact, source, started_at, resolved_at, start_status_code, start_error, duration_ms, created_at, updated_at) VALUES (1, 'investigating', 'major', 'auto', ?, NULL, 503, ?, NULL, ?, ?)",
 	)
-		.bind(now, monitor.lastError, aiMessage, now, now)
+		.bind(now, monitor.lastError, now, now)
 		.run();
+	await env.DB.prepare('INSERT INTO incident_monitors (incident_id, monitor_id) VALUES (1, 1)').run();
+	if (aiMessage) {
+		await env.DB.prepare(
+			"INSERT INTO incident_updates (incident_id, status, body, source, created_at) VALUES (1, 'investigating', ?, 'ai', ?)",
+		)
+			.bind(aiMessage, now)
+			.run();
+	}
 }
 
 async function seedAiSettings(enabled = true) {
@@ -79,7 +90,7 @@ async function authenticatedCookie() {
 	await env.DB.prepare('INSERT INTO admin_credentials (id, password_hash, created_at, updated_at) VALUES (1, ?, ?, ?)')
 		.bind(await hashPassword(ADMIN_PASSWORD), now, now)
 		.run();
-	const response = await SELF.fetch('https://example.com/api/auth/login', {
+	const response = await worker.default.fetch('https://example.com/api/auth/login', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json', Origin: 'https://example.com' },
 		body: JSON.stringify({ password: ADMIN_PASSWORD }),
@@ -88,7 +99,7 @@ async function authenticatedCookie() {
 }
 
 async function settingsRequest(path: string, cookie: string, init?: RequestInit) {
-	return SELF.fetch(`https://example.com/api/settings${path}`, {
+	return worker.default.fetch(`https://example.com/api/settings${path}`, {
 		...init,
 		headers: {
 			'Content-Type': 'application/json',
@@ -185,7 +196,9 @@ describe('AI incident messages', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		await expect(generateIncidentMessage(env, { monitor, result: failedResult })).resolves.toBe(expected);
-		const incident = await env.DB.prepare('SELECT ai_message AS aiMessage FROM incidents').first<{ aiMessage: string | null }>();
+		const incident = await env.DB.prepare("SELECT body AS aiMessage FROM incident_updates WHERE source = 'ai'").first<{
+			aiMessage: string | null;
+		}>();
 		expect(incident?.aiMessage).toBe(expected);
 
 		const promptText = String(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).messages[1].content);
@@ -214,8 +227,10 @@ describe('AI incident messages', () => {
 		vi.stubGlobal('fetch', vi.fn(implementation));
 
 		await expect(generateIncidentMessage(env, { monitor, result: failedResult })).resolves.toBeNull();
-		const incident = await env.DB.prepare('SELECT ai_message AS aiMessage FROM incidents').first<{ aiMessage: string | null }>();
-		expect(incident?.aiMessage).toBeNull();
+		const incident = await env.DB.prepare("SELECT body AS aiMessage FROM incident_updates WHERE source = 'ai'").first<{
+			aiMessage: string | null;
+		}>();
+		expect(incident).toBeNull();
 	});
 
 	it('rejects generated content containing a URL', async () => {
@@ -227,22 +242,24 @@ describe('AI incident messages', () => {
 		);
 
 		await expect(generateIncidentMessage(env, { monitor, result: failedResult })).resolves.toBeNull();
-		const incident = await env.DB.prepare('SELECT ai_message AS aiMessage FROM incidents').first<{ aiMessage: string | null }>();
-		expect(incident?.aiMessage).toBeNull();
+		const incident = await env.DB.prepare("SELECT body AS aiMessage FROM incident_updates WHERE source = 'ai'").first<{
+			aiMessage: string | null;
+		}>();
+		expect(incident).toBeNull();
 	});
 
 	it('returns stored AI copy and deterministic fallback copy on public status', async () => {
 		await seedMonitorAndIncident('Customers may see delayed API responses.');
 		let body = await (
-			await SELF.fetch('https://example.com/api/status')
+			await worker.default.fetch('https://example.com/api/status')
 		).json<{
 			services: Array<{ message: string | null }>;
 		}>();
 		expect(body.services[0].message).toBe('Customers may see delayed API responses.');
 
-		await env.DB.prepare('UPDATE incidents SET ai_message = NULL').run();
+		await env.DB.prepare('DELETE FROM incident_updates').run();
 		body = await (
-			await SELF.fetch('https://example.com/api/status')
+			await worker.default.fetch('https://example.com/api/status')
 		).json<{
 			services: Array<{ message: string | null }>;
 		}>();

@@ -236,13 +236,16 @@ export function MonitorDetailPage({ id }: { id: number }) {
 								<article className={incident.resolvedAt ? 'resolved' : 'open'} key={incident.id}>
 									<span>{incident.resolvedAt ? <CheckCircle2 /> : <Clock3 />}</span>
 									<div>
-										<strong>{incident.resolvedAt ? 'Resolved incident' : 'Incident in progress'}</strong>
+										<button type="button" className="incident-detail-link" onClick={() => navigate(`/incidents/${incident.id}`)}>
+											<strong>{incident.title ?? (incident.resolvedAt ? 'Resolved incident' : 'Incident in progress')}</strong>
+											<Badge variant={incident.resolvedAt ? 'online' : 'offline'}>{incident.status}</Badge>
+										</button>
 										<p>
-											{incident.aiMessage ??
+											{incident.latestUpdate?.body ??
 												incident.startError ??
 												(incident.startStatusCode ? `HTTP ${incident.startStatusCode}` : 'Endpoint became unavailable')}
 										</p>
-										{incident.aiMessage && incident.startError && <small className="incident-raw">{incident.startError}</small>}
+										{incident.latestUpdate && incident.startError && <small className="incident-raw">{incident.startError}</small>}
 										<small>
 											{formatDate(incident.startedAt)} · {formatDuration(incident.durationMs, incident.startedAt)}
 										</small>

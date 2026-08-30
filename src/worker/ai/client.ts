@@ -8,7 +8,12 @@ type CompletionBody = {
 	choices?: Array<{ message?: { content?: unknown } }>;
 };
 
-export async function requestCompletion(settings: CompletionSettings, system: string, user: string): Promise<string | null> {
+export async function requestCompletion(
+	settings: CompletionSettings,
+	system: string,
+	user: string,
+	maxTokens = 160,
+): Promise<string | null> {
 	try {
 		const response = await fetch(`${settings.baseUrl}/chat/completions`, {
 			method: 'POST',
@@ -22,7 +27,7 @@ export async function requestCompletion(settings: CompletionSettings, system: st
 					{ role: 'system', content: system },
 					{ role: 'user', content: user },
 				],
-				max_tokens: 160,
+				max_tokens: maxTokens,
 				temperature: 0.2,
 			}),
 			signal: AbortSignal.timeout(10_000),

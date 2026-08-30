@@ -1,56 +1,52 @@
-import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { deterministicIncidentMessage } from '../ai/fallback-message';
 import { getDb } from '../db/client';
-import { checks, incidents, monitorDailyStats, monitors } from '../db/schema';
+import { checks, incidentMonitors, incidents, incidentUpdates, monitorDailyStats, monitors } from '../db/schema';
 import { loadActiveMaintenance, type ActiveMaintenance } from '../maintenance/windows';
 import { resolveFavicon } from './monitors';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FAVICON_CACHE_SECONDS = 86_400;
-
 type ServiceStatus = 'up' | 'down' | 'unknown' | 'maintenance';
 type OverallStatus = 'operational' | 'degraded' | 'down';
-
-type HistoryEntry = {
-	day: number;
-	uptimePct: number | null;
-};
-
-type DailyAggregate = {
-	monitorId: number;
-	day: Date;
-	totalChecks: number;
-	upChecks: number;
-};
-
-type OpenIncident = {
-	monitorId: number;
-	aiMessage: string | null;
-	startStatusCode: number | null;
-};
-
+type DailyAggregate = { monitorId: number; day: Date; totalChecks: number; upChecks: number };
 type EdgeCache = {
 	match(request: RequestInfo | URL): Promise<Response | undefined>;
 	put(request: RequestInfo | URL, response: Response): Promise<void>;
+};
+
+type PublicUpdate = { body: string; status: string; createdAt: Date };
+type PublicIncident = {
+	id: number;
+	title: string | null;
+	status: string;
+	impact: string;
+	source: string;
+	startedAt: Date;
+	resolvedAt: Date | null;
+	durationMs: number | null;
+	startStatusCode: number | null;
 };
 
 function parseId(rawId: string) {
 	const id = Number(rawId);
 	return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
-
+function parseLimit(raw: string | undefined, fallback: number, maximum: number) {
+	if (!raw) return fallback;
+	const value = Number(raw);
+	return Number.isSafeInteger(value) && value > 0 ? Math.min(value, maximum) : fallback;
+}
 function roundUptime(upChecks: number, totalChecks: number) {
 	return totalChecks > 0 ? Math.round((upChecks / totalChecks) * 1_000) / 10 : null;
 }
-
 function serviceStatus(lastOk: boolean | null): ServiceStatus {
 	if (lastOk === true) return 'up';
 	if (lastOk === false) return 'down';
 	return 'unknown';
 }
-
-function overallStatus(statuses: ServiceStatus[]): OverallStatus {
+function overallStatus(statuses: ServiceStatus[], manualImpacts: string[]): OverallStatus {
 	let checked = 0;
 	let down = 0;
 	for (const status of statuses) {
@@ -58,10 +54,59 @@ function overallStatus(statuses: ServiceStatus[]): OverallStatus {
 		checked += 1;
 		if (status === 'down') down += 1;
 	}
-	if (down === 0) return 'operational';
-	if (down === checked) return 'down';
-	return 'degraded';
+	let severity = down === 0 ? 0 : down === checked ? 2 : 1;
+	for (const impact of manualImpacts)
+		severity = Math.max(severity, impact === 'critical' ? 2 : impact === 'minor' || impact === 'major' ? 1 : 0);
+	return severity === 2 ? 'down' : severity === 1 ? 'degraded' : 'operational';
 }
+function publicIncidentTitle(incident: Pick<PublicIncident, 'title' | 'source'>) {
+	return incident.title ?? (incident.source === 'auto' ? 'Service disruption' : 'Incident update');
+}
+
+async function loadServices(db: ReturnType<typeof getDb>, incidentIds: number[]) {
+	if (incidentIds.length === 0) return new Map<number, Array<{ id: number; name: string }>>();
+	const rows = await db
+		.select({ incidentId: incidentMonitors.incidentId, id: monitors.id, name: monitors.name })
+		.from(incidentMonitors)
+		.innerJoin(monitors, eq(monitors.id, incidentMonitors.monitorId))
+		.where(inArray(incidentMonitors.incidentId, incidentIds));
+	const grouped = new Map<number, Array<{ id: number; name: string }>>();
+	for (const row of rows) {
+		const services = grouped.get(row.incidentId);
+		if (services) services.push({ id: row.id, name: row.name });
+		else grouped.set(row.incidentId, [{ id: row.id, name: row.name }]);
+	}
+	return grouped;
+}
+
+async function loadLatestUpdates(db: ReturnType<typeof getDb>, incidentIds: number[]) {
+	if (incidentIds.length === 0) return new Map<number, PublicUpdate>();
+	const rows = await db
+		.select({
+			incidentId: incidentUpdates.incidentId,
+			body: incidentUpdates.body,
+			status: incidentUpdates.status,
+			createdAt: incidentUpdates.createdAt,
+		})
+		.from(incidentUpdates)
+		.where(inArray(incidentUpdates.incidentId, incidentIds))
+		.orderBy(desc(incidentUpdates.createdAt), desc(incidentUpdates.id));
+	const latest = new Map<number, PublicUpdate>();
+	for (const row of rows) if (!latest.has(row.incidentId)) latest.set(row.incidentId, row);
+	return latest;
+}
+
+const incidentSelection = {
+	id: incidents.id,
+	title: incidents.title,
+	status: incidents.status,
+	impact: incidents.impact,
+	source: incidents.source,
+	startedAt: incidents.startedAt,
+	resolvedAt: incidents.resolvedAt,
+	durationMs: incidents.durationMs,
+	startStatusCode: incidents.startStatusCode,
+};
 
 const statusRoutes = new Hono<{ Bindings: Env }>();
 
@@ -72,11 +117,19 @@ statusRoutes.get('/', async (context) => {
 			id: monitors.id,
 			name: monitors.name,
 			lastOk: monitors.lastOk,
+			lastStatusCode: monitors.lastStatusCode,
 			lastCheckedAt: monitors.lastCheckedAt,
 		})
 		.from(monitors)
 		.where(eq(monitors.enabled, true))
 		.orderBy(monitors.createdAt);
+	const activeIncidentRows = await db
+		.select(incidentSelection)
+		.from(incidents)
+		.where(isNull(incidents.resolvedAt))
+		.orderBy(desc(incidents.startedAt));
+	const incidentIds = activeIncidentRows.map((incident) => incident.id);
+	const [incidentServices, latestUpdates] = await Promise.all([loadServices(db, incidentIds), loadLatestUpdates(db, incidentIds)]);
 
 	const now = new Date();
 	const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -84,11 +137,9 @@ statusRoutes.get('/', async (context) => {
 	const monitorIds = monitorRows.map((monitor) => monitor.id);
 	let historicalRows: DailyAggregate[] = [];
 	let todayRows: DailyAggregate[] = [];
-	let openIncidentRows: OpenIncident[] = [];
 	let activeMaintenance = new Map<number, ActiveMaintenance>();
-
 	if (monitorIds.length > 0) {
-		[historicalRows, todayRows, openIncidentRows, activeMaintenance] = await Promise.all([
+		[historicalRows, todayRows, activeMaintenance] = await Promise.all([
 			db
 				.select({
 					monitorId: monitorDailyStats.monitorId,
@@ -115,31 +166,25 @@ statusRoutes.get('/', async (context) => {
 				.from(checks)
 				.where(and(inArray(checks.monitorId, monitorIds), eq(checks.maintenance, false), gte(checks.checkedAt, new Date(today))))
 				.groupBy(checks.monitorId),
-			db
-				.select({
-					monitorId: incidents.monitorId,
-					aiMessage: incidents.aiMessage,
-					startStatusCode: incidents.startStatusCode,
-				})
-				.from(incidents)
-				.where(and(inArray(incidents.monitorId, monitorIds), isNull(incidents.resolvedAt))),
 			loadActiveMaintenance(db, now),
 		]);
 	}
-
 	const bucketsByMonitor = new Map<number, DailyAggregate[]>();
 	for (const row of [...historicalRows, ...todayRows]) {
 		const buckets = bucketsByMonitor.get(row.monitorId);
 		if (buckets) buckets.push(row);
 		else bucketsByMonitor.set(row.monitorId, [row]);
 	}
-	const openIncidentsByMonitor = new Map(openIncidentRows.map((incident) => [incident.monitorId, incident]));
-
+	const activeIncidentByMonitor = new Map<number, PublicIncident>();
+	for (const incident of activeIncidentRows) {
+		for (const service of incidentServices.get(incident.id) ?? [])
+			if (!activeIncidentByMonitor.has(service.id)) activeIncidentByMonitor.set(service.id, incident);
+	}
 	const services = monitorRows.map((monitor) => {
 		const buckets = bucketsByMonitor.get(monitor.id) ?? [];
 		let totalChecks = 0;
 		let upChecks = 0;
-		const history: HistoryEntry[] = buckets.map((bucket) => {
+		const history = buckets.map((bucket) => {
 			totalChecks += bucket.totalChecks;
 			upChecks += bucket.upChecks;
 			return {
@@ -147,8 +192,7 @@ statusRoutes.get('/', async (context) => {
 				uptimePct: roundUptime(bucket.upChecks, bucket.totalChecks),
 			};
 		});
-
-		const openIncident = openIncidentsByMonitor.get(monitor.id);
+		const incident = activeIncidentByMonitor.get(monitor.id);
 		const maintenance = activeMaintenance.get(monitor.id);
 		return {
 			id: monitor.id,
@@ -156,7 +200,9 @@ statusRoutes.get('/', async (context) => {
 			status: maintenance ? ('maintenance' as const) : serviceStatus(monitor.lastOk),
 			message:
 				!maintenance && monitor.lastOk === false
-					? (openIncident?.aiMessage ?? deterministicIncidentMessage(openIncident?.startStatusCode ?? null))
+					? incident
+						? (latestUpdates.get(incident.id)?.body ?? deterministicIncidentMessage(incident.startStatusCode))
+						: deterministicIncidentMessage(monitor.lastStatusCode)
 					: null,
 			maintenance: maintenance ? { name: maintenance.name, endsAt: maintenance.endsAt.toISOString() } : null,
 			lastCheckedAt: monitor.lastCheckedAt?.toISOString() ?? null,
@@ -164,11 +210,86 @@ statusRoutes.get('/', async (context) => {
 			history,
 		};
 	});
-
+	const activeIncidents = activeIncidentRows.map((incident) => ({
+		id: incident.id,
+		title: publicIncidentTitle(incident),
+		status: incident.status,
+		impact: incident.impact,
+		source: incident.source,
+		startedAt: incident.startedAt.toISOString(),
+		latestUpdate: latestUpdates.get(incident.id) ?? null,
+		services: incidentServices.get(incident.id) ?? [],
+	}));
 	return context.json({
-		overall: overallStatus(services.map((service) => service.status)),
+		overall: overallStatus(
+			services.map((service) => service.status),
+			activeIncidentRows.filter((incident) => incident.source === 'manual').map((incident) => incident.impact),
+		),
 		updatedAt: Date.now(),
 		services,
+		activeIncidents,
+	});
+});
+
+statusRoutes.get('/incidents', async (context) => {
+	const db = getDb(context.env);
+	const limit = parseLimit(context.req.query('limit'), 20, 20);
+	const rows = await db
+		.select(incidentSelection)
+		.from(incidents)
+		.where(and(eq(incidents.status, 'resolved'), gte(incidents.resolvedAt, new Date(Date.now() - 30 * DAY_MS))))
+		.orderBy(desc(incidents.resolvedAt))
+		.limit(limit);
+	const services = await loadServices(
+		db,
+		rows.map((row) => row.id),
+	);
+	return context.json({
+		incidents: rows.map((incident) => ({
+			id: incident.id,
+			title: publicIncidentTitle(incident),
+			status: incident.status,
+			impact: incident.impact,
+			source: incident.source,
+			startedAt: incident.startedAt.toISOString(),
+			resolvedAt: incident.resolvedAt?.toISOString() ?? null,
+			durationMs: incident.durationMs,
+			services: services.get(incident.id) ?? [],
+		})),
+	});
+});
+
+statusRoutes.get('/incidents/:id', async (context) => {
+	const id = parseId(context.req.param('id'));
+	if (id === null) return context.json({ message: 'Incident not found' }, 404);
+	const db = getDb(context.env);
+	const [incident] = await db.select(incidentSelection).from(incidents).where(eq(incidents.id, id)).limit(1);
+	if (!incident) return context.json({ message: 'Incident not found' }, 404);
+	const [services, updates] = await Promise.all([
+		loadServices(db, [id]),
+		db
+			.select({ status: incidentUpdates.status, body: incidentUpdates.body, createdAt: incidentUpdates.createdAt })
+			.from(incidentUpdates)
+			.where(eq(incidentUpdates.incidentId, id))
+			.orderBy(incidentUpdates.createdAt, incidentUpdates.id),
+	]);
+	const timeline =
+		updates.length > 0
+			? updates
+			: [{ status: incident.status, body: deterministicIncidentMessage(incident.startStatusCode), createdAt: incident.startedAt }];
+	return context.json({
+		incident: {
+			id: incident.id,
+			title: publicIncidentTitle(incident),
+			status: incident.status,
+			impact: incident.impact,
+			source: incident.source,
+			startedAt: incident.startedAt.toISOString(),
+			resolvedAt: incident.resolvedAt?.toISOString() ?? null,
+			durationMs: incident.durationMs,
+			services: services.get(id) ?? [],
+			updates: timeline,
+		},
 	});
 });
 
@@ -181,7 +302,6 @@ statusRoutes.get('/:id/favicon', async (context) => {
 		.where(and(eq(monitors.id, id), eq(monitors.enabled, true)))
 		.limit(1);
 	if (!monitor) return context.json({ message: 'Service not found' }, 404);
-
 	const cacheKey = new Request(`${new URL(context.req.url).origin}/api/status/${id}/favicon`);
 	let cache: EdgeCache | null = null;
 	try {
@@ -190,12 +310,10 @@ statusRoutes.get('/:id/favicon', async (context) => {
 		if (cached) return cached;
 		cache = defaultCache;
 	} catch {
-		// Cache API availability is best-effort, particularly in local and preview environments.
+		// Cache API availability is best-effort.
 	}
-
 	const favicon = await resolveFavicon(monitor.url);
 	if (!favicon) return context.json({ message: 'No favicon' }, 404);
-
 	const response = new Response(favicon.body, {
 		headers: {
 			'Cache-Control': `public, max-age=${FAVICON_CACHE_SECONDS}`,
@@ -204,9 +322,7 @@ statusRoutes.get('/:id/favicon', async (context) => {
 			'X-Content-Type-Options': 'nosniff',
 		},
 	});
-	if (cache) {
-		context.executionCtx.waitUntil(cache.put(cacheKey, response.clone()).catch(() => undefined));
-	}
+	if (cache) context.executionCtx.waitUntil(cache.put(cacheKey, response.clone()).catch(() => undefined));
 	return response;
 });
 

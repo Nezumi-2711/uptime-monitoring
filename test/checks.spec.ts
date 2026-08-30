@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runDueChecks } from '../src/worker/checks/run-due-checks';
 
@@ -7,6 +8,8 @@ async function clearMonitoringTables() {
 		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
 		env.DB.prepare('DELETE FROM maintenance_windows'),
 		env.DB.prepare('DELETE FROM checks'),
+		env.DB.prepare('DELETE FROM incident_updates'),
+		env.DB.prepare('DELETE FROM incident_monitors'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
 		env.DB.prepare('DELETE FROM notification_settings'),
@@ -103,7 +106,7 @@ describe('scheduled monitor checks', () => {
 			last_error: 'Expected HTTP 200, received 500',
 		});
 		const incident = await env.DB.prepare(
-			'SELECT monitor_id, resolved_at, start_status_code, start_error FROM incidents WHERE monitor_id = ?',
+			'SELECT im.monitor_id, i.resolved_at, i.start_status_code, i.start_error FROM incidents i JOIN incident_monitors im ON im.incident_id = i.id WHERE im.monitor_id = ?',
 		)
 			.bind(id)
 			.first<{ monitor_id: number; resolved_at: number | null; start_status_code: number; start_error: string }>();
@@ -122,26 +125,46 @@ describe('scheduled monitor checks', () => {
 			vi.fn(async () => new Response(null, { status: 503 })),
 		);
 		await runDueChecks(env);
-		const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM incidents WHERE monitor_id = ?').bind(id).first<{ count: number }>();
+		const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
+			.bind(id)
+			.first<{ count: number }>();
 		expect(count?.count).toBe(0);
+	});
+
+	it('links each auto incident to the correct monitor in one scheduled batch', async () => {
+		const firstId = await insertMonitor({ name: 'First', url: 'https://first.example.com' });
+		const secondId = await insertMonitor({ name: 'Second', url: 'https://second.example.com' });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 503 })),
+		);
+
+		await runDueChecks(env);
+		const assignments = await env.DB.prepare('SELECT incident_id, monitor_id FROM incident_monitors ORDER BY incident_id').all<{
+			incident_id: number;
+			monitor_id: number;
+		}>();
+		expect(assignments.results.map((row) => row.monitor_id)).toEqual([firstId, secondId]);
+		expect(new Set(assignments.results.map((row) => row.incident_id)).size).toBe(2);
 	});
 
 	it('resolves the open incident on recovery', async () => {
 		const id = await insertMonitor({ last_ok: 0 });
 		const startedAt = Date.now() - 60_000;
-		await env.DB.prepare(
-			"INSERT INTO incidents (monitor_id, started_at, start_status_code, start_error, created_at, updated_at) VALUES (?, ?, 500, 'Down', ?, ?)",
+		const inserted = await env.DB.prepare(
+			"INSERT INTO incidents (status, impact, source, started_at, start_status_code, start_error, created_at, updated_at) VALUES ('investigating', 'major', 'auto', ?, 500, 'Down', ?, ?)",
 		)
-			.bind(id, startedAt, startedAt, startedAt)
+			.bind(startedAt, startedAt, startedAt)
 			.run();
+		await env.DB.prepare('INSERT INTO incident_monitors (incident_id, monitor_id) VALUES (?, ?)').bind(inserted.meta.last_row_id, id).run();
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async () => new Response(null, { status: 200 })),
 		);
 
 		await runDueChecks(env);
-		const incident = await env.DB.prepare('SELECT resolved_at, duration_ms FROM incidents WHERE monitor_id = ?')
-			.bind(id)
+		const incident = await env.DB.prepare('SELECT resolved_at, duration_ms FROM incidents WHERE id = ?')
+			.bind(inserted.meta.last_row_id)
 			.first<{ resolved_at: number | null; duration_ms: number | null }>();
 		expect(incident?.resolved_at).toEqual(expect.any(Number));
 		expect(incident?.duration_ms).toBeGreaterThanOrEqual(60_000);

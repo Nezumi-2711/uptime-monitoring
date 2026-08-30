@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import type { CheckResult, Monitor } from '../checks/run-check';
 import type { Database } from '../db/client';
-import { checks, incidents } from '../db/schema';
+import { checks, incidentMonitors, incidents } from '../db/schema';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -154,7 +154,8 @@ export async function buildIncidentContext(db: Database, monitor: Monitor, resul
 		const [priorIncidents] = await db
 			.select({ count: sql<number>`count(*)` })
 			.from(incidents)
-			.where(and(eq(incidents.monitorId, monitor.id), gte(incidents.startedAt, new Date(now - 30 * DAY_MS))));
+			.innerJoin(incidentMonitors, eq(incidentMonitors.incidentId, incidents.id))
+			.where(and(eq(incidentMonitors.monitorId, monitor.id), gte(incidents.startedAt, new Date(now - 30 * DAY_MS))));
 		// The incident that triggered this run is already persisted, so discount it.
 		const priorCount = Math.max(0, Number(priorIncidents?.count ?? 0) - 1);
 		lines.push(

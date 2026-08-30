@@ -43,6 +43,13 @@
       "when": 1788007515959,
       "tag": "0005_pink_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788012122846,
+      "tag": "0006_gifted_deathstrike",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import type { Monitor } from '../api/monitors';
 import { AppHeader } from '../components/AppHeader';
 import { DashboardFooter } from '../components/dashboard/DashboardFooter';
 import { DashboardOverview } from '../components/dashboard/DashboardOverview';
+import { IncidentsPanel } from '../components/dashboard/IncidentsPanel';
 import { MonitorFormDialog } from '../components/dashboard/MonitorFormDialog';
 import { MonitorListPanel } from '../components/dashboard/MonitorListPanel';
 
@@ -35,6 +36,7 @@ export function DashboardPage() {
 				{formOpen ? <MonitorFormDialog key={editing?.id ?? 'create'} editing={editing} onClose={closeForm} /> : null}
 
 				<MonitorListPanel formOpen={formOpen} onAddMonitor={openCreateForm} onEdit={openEditForm} />
+				<IncidentsPanel />
 			</main>
 
 			<DashboardFooter />

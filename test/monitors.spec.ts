@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, SELF, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env, exports as worker } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashPassword } from '../src/worker/lib/password';
 import { resolveFavicon } from '../src/worker/routes/monitors';
@@ -16,6 +17,8 @@ const VALID_MONITOR = {
 async function seedAdmin() {
 	await env.DB.batch([
 		env.DB.prepare('DELETE FROM checks'),
+		env.DB.prepare('DELETE FROM incident_updates'),
+		env.DB.prepare('DELETE FROM incident_monitors'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
 		env.DB.prepare('DELETE FROM notification_settings'),
@@ -31,7 +34,7 @@ async function seedAdmin() {
 }
 
 async function authenticatedCookie() {
-	const response = await SELF.fetch('https://example.com/api/auth/login', {
+	const response = await worker.default.fetch('https://example.com/api/auth/login', {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -44,7 +47,7 @@ async function authenticatedCookie() {
 }
 
 function apiFetch(path: string, method = 'GET', cookie = '', body?: unknown) {
-	return SELF.fetch(`https://example.com${path}`, {
+	return worker.default.fetch(`https://example.com${path}`, {
 		method,
 		headers: {
 			...(cookie ? { Cookie: cookie } : {}),
@@ -194,8 +197,9 @@ describe('monitor API', () => {
 				now - 1000,
 			),
 			env.DB.prepare(
-				"INSERT INTO incidents (monitor_id, started_at, start_status_code, start_error, created_at, updated_at) VALUES (?, ?, 500, 'Down', ?, ?)",
-			).bind(id, now - 1000, now - 1000, now - 1000),
+				"INSERT INTO incidents (id, status, impact, source, started_at, start_status_code, start_error, created_at, updated_at) VALUES (100, 'investigating', 'major', 'auto', ?, 500, 'Down', ?, ?)",
+			).bind(now - 1000, now - 1000, now - 1000),
+			env.DB.prepare('INSERT INTO incident_monitors (incident_id, monitor_id) VALUES (100, ?)').bind(id),
 		]);
 
 		const [detail, checksResponse, incidentsResponse, statsResponse] = await Promise.all([

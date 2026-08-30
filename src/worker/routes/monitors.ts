@@ -4,7 +4,7 @@ import { generateIncidentMessage } from '../ai/incident-message';
 import { buildResultStatements } from '../checks/persist-result';
 import { runCheck } from '../checks/run-check';
 import { getDb } from '../db/client';
-import { checks, incidents, maintenanceWindowMonitors, monitors } from '../db/schema';
+import { checks, incidentMonitors, incidents, maintenanceWindowMonitors, monitors } from '../db/schema';
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
 import { loadActiveMaintenance } from '../maintenance/windows';
 import { isSafeRemoteUrl } from '../lib/safe-url';
@@ -347,13 +347,38 @@ monitorRoutes.get('/:id/incidents', async (context) => {
 	const id = parseId(context.req.param('id'));
 	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
 	const limit = parseLimit(context.req.query('limit'), 50, 200);
-	const rows = await getDb(context.env)
-		.select()
+	const db = getDb(context.env);
+	const rows = await db
+		.select({
+			id: incidents.id,
+			title: incidents.title,
+			status: incidents.status,
+			impact: incidents.impact,
+			source: incidents.source,
+			startedAt: incidents.startedAt,
+			resolvedAt: incidents.resolvedAt,
+			startStatusCode: incidents.startStatusCode,
+			startError: incidents.startError,
+			durationMs: incidents.durationMs,
+			createdAt: incidents.createdAt,
+			updatedAt: incidents.updatedAt,
+			latestUpdate: sql<{ body: string; status: string; createdAt: number } | null>`(
+				select json_object('body', body, 'status', status, 'createdAt', created_at)
+				from incident_updates where incident_id = ${incidents.id}
+				order by created_at desc, id desc limit 1
+			)`,
+		})
 		.from(incidents)
-		.where(eq(incidents.monitorId, id))
+		.innerJoin(incidentMonitors, eq(incidentMonitors.incidentId, incidents.id))
+		.where(eq(incidentMonitors.monitorId, id))
 		.orderBy(desc(incidents.startedAt))
 		.limit(limit);
-	return context.json({ incidents: rows });
+	return context.json({
+		incidents: rows.map((row) => ({
+			...row,
+			latestUpdate: typeof row.latestUpdate === 'string' ? JSON.parse(row.latestUpdate) : row.latestUpdate,
+		})),
+	});
 });
 
 monitorRoutes.get('/:id/stats', async (context) => {
@@ -399,9 +424,10 @@ monitorRoutes.get('/:id/stats', async (context) => {
 			const [incidentAggregate] = await db
 				.select({ count: sql<number>`count(*)` })
 				.from(incidents)
+				.innerJoin(incidentMonitors, eq(incidentMonitors.incidentId, incidents.id))
 				.where(
 					and(
-						eq(incidents.monitorId, id),
+						eq(incidentMonitors.monitorId, id),
 						gte(incidents.startedAt, new Date(window.start)),
 						or(isNull(incidents.resolvedAt), gte(incidents.resolvedAt, new Date(window.start))),
 					),
@@ -515,6 +541,7 @@ monitorRoutes.delete('/:id', async (context) => {
 
 	await db.batch([
 		db.delete(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.monitorId, id)),
+		db.delete(incidentMonitors).where(eq(incidentMonitors.monitorId, id)),
 		db.delete(checks).where(eq(checks.monitorId, id)),
 		db.delete(monitors).where(eq(monitors.id, id)),
 	]);

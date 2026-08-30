@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, SELF, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env, exports as worker } from 'cloudflare:workers';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -69,7 +70,7 @@ async function insertMonitor(input: {
 }
 
 function statusFetch(path = '/api/status') {
-	return SELF.fetch(`https://example.com${path}`);
+	return worker.default.fetch(`https://example.com${path}`);
 }
 
 describe('public status API', () => {
@@ -182,7 +183,7 @@ describe('public status API', () => {
 	});
 
 	it('keeps the administrative monitor collection protected', async () => {
-		const response = await SELF.fetch('https://example.com/api/monitors');
+		const response = await worker.default.fetch('https://example.com/api/monitors');
 		expect(response.status).toBe(401);
 		expect(await response.json()).toEqual({ message: 'Authentication required' });
 	});

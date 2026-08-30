@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { runDailyRollup } from '../src/worker/scheduled/rollup';
 

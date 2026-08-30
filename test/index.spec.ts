@@ -1,9 +1,9 @@
-import { SELF } from 'cloudflare:test';
+import { exports as worker } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 describe('uptime monitoring Worker', () => {
 	it('returns a successful D1 health response', async () => {
-		const response = await SELF.fetch('https://example.com/api/health');
+		const response = await worker.default.fetch('https://example.com/api/health');
 		const body = await response.json<{
 			ok: boolean;
 			db: { ok: number } | null;

@@ -134,9 +134,9 @@ maintenanceRoutes.post('/', async (context) => {
 			now.getTime(),
 		),
 		...monitorIds.map((monitorId) =>
-			context.env.DB.prepare(
-				'INSERT INTO maintenance_window_monitors (window_id, monitor_id) VALUES ((SELECT max(id) FROM maintenance_windows), ?)',
-			).bind(monitorId),
+			context.env.DB.prepare('INSERT INTO maintenance_window_monitors (window_id, monitor_id) VALUES (last_insert_rowid(), ?)').bind(
+				monitorId,
+			),
 		),
 	]);
 	const id = Number(results[0].meta.last_row_id);
@@ -185,7 +185,7 @@ maintenanceRoutes.patch('/:id', async (context) => {
 	}
 
 	const { monitorIds, ...changes } = parsed.value;
-	const statements = [
+	const statements: Parameters<Database['batch']>[0][number][] = [
 		db
 			.update(maintenanceWindows)
 			.set({ ...changes, updatedAt: new Date() })

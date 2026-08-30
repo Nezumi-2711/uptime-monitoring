@@ -2,6 +2,8 @@
 export const INCIDENT_REASSURANCE =
 	'The problem was detected automatically, our team has been alerted, and we are working to restore normal service as soon as possible.';
 
+export const RECOVERY_UPDATE_BODY = 'The service has recovered and is responding normally again.';
+
 /** Plain-language, non-technical description of the impact, used when no AI message is available. */
 export function describeFailure(statusCode: number | null): string {
 	if (statusCode === null) return 'This service is currently unreachable and may not load for visitors.';

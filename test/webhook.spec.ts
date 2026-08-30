@@ -1,4 +1,5 @@
-import { applyD1Migrations, env, type D1Migration } from 'cloudflare:test';
+import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sendIncidentAlert } from '../src/worker/notifications/webhook';
 import type { Monitor } from '../src/worker/checks/run-check';

@@ -8,7 +8,7 @@ import { SiteIcon } from '../components/SiteIcon';
 import { StatusHistoryBar } from '../components/StatusHistoryBar';
 import { navigate } from '../lib/router';
 import { useSessionQuery } from '../queries/auth';
-import { useStatusQuery } from '../queries/status';
+import { useIncidentHistoryQuery, useStatusQuery } from '../queries/status';
 
 const OVERALL_COPY: Record<PublicOverallStatus, { title: string; detail: string }> = {
 	operational: {
@@ -54,10 +54,11 @@ function OverallIcon({ status }: { status: PublicOverallStatus }) {
 
 export function StatusPage() {
 	const statusQuery = useStatusQuery();
+	const historyQuery = useIncidentHistoryQuery();
 	const sessionQuery = useSessionQuery();
 	const [now, setNow] = useState(Date.now);
 	const status = statusQuery.data;
-	const activeIncidents = status?.services.filter((service) => service.message) ?? [];
+	const activeIncidents = status?.activeIncidents ?? [];
 	const maintenanceServices = status?.services.filter((service) => service.maintenance) ?? [];
 
 	useEffect(() => {
@@ -180,25 +181,31 @@ export function StatusPage() {
 										</div>
 									</div>
 									<span className="active-incidents-count">
-										{activeIncidents.length} {activeIncidents.length === 1 ? 'service' : 'services'} affected
+										{activeIncidents.length} {activeIncidents.length === 1 ? 'incident' : 'incidents'} active
 									</span>
 								</header>
 
 								<div className="active-incident-list">
-									{activeIncidents.map((service) => (
-										<article className="active-incident-row" key={service.id}>
+									{activeIncidents.map((incident) => (
+										<article className="active-incident-row" key={incident.id}>
 											<div className="active-incident-service">
 												<span className="active-incident-service-icon">
-													<SiteIcon monitorId={service.id} favicon="public" />
+													<TriangleAlert />
 												</span>
 												<div>
-													<strong>{service.name}</strong>
-													<span>Service disruption</span>
+													<button type="button" onClick={() => navigate(`/incidents/${incident.id}`)}>
+														<strong>{incident.title}</strong>
+													</button>
+													<span>
+														{incident.services.length
+															? incident.services.map((service) => service.name).join(', ')
+															: 'General service incident'}
+													</span>
 												</div>
 											</div>
-											<p>{service.message}</p>
+											<p>{incident.latestUpdate?.body}</p>
 											<span className="active-incident-state">
-												<i /> Investigating
+												<i /> {incident.status}
 											</span>
 										</article>
 									))}
@@ -260,6 +267,28 @@ export function StatusPage() {
 								</div>
 							)}
 						</section>
+
+						{(historyQuery.data?.incidents.length ?? 0) > 0 && (
+							<section className="past-incidents" aria-labelledby="past-incidents-title">
+								<header>
+									<div>
+										<p className="overline">Last 30 days</p>
+										<h2 id="past-incidents-title">Past incidents</h2>
+									</div>
+								</header>
+								<div>
+									{historyQuery.data!.incidents.map((incident) => (
+										<button key={incident.id} type="button" onClick={() => navigate(`/incidents/${incident.id}`)}>
+											<span>
+												<strong>{incident.title}</strong>
+												<small>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(incident.startedAt))}</small>
+											</span>
+											<Badge variant="online">Resolved</Badge>
+										</button>
+									))}
+								</div>
+							</section>
+						)}
 					</>
 				)}
 			</main>
