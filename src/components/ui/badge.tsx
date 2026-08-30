@@ -8,6 +8,7 @@ const badgeVariants = cva('inline-flex items-center gap-1.75 text-[12px] font-me
 		variant: {
 			online: 'text-[#16885b] [&>i]:bg-(--primary-deep) [&>i]:shadow-[0_0_0_3px_rgb(62_207_142/0.12)]',
 			offline: 'text-[#ae3d3d] [&>i]:bg-[#d05a5a]',
+			pending: 'text-[#8a5a1f] [&>i]:bg-[#e0913f] [&>i]:shadow-[0_0_0_3px_rgb(224_145_63/0.14)]',
 			checking: 'text-[#8b7722] [&>i]:animate-[blink_1.1s_ease-in-out_infinite] [&>i]:bg-[#d7bd53]',
 			maintenance: 'text-[#3f6fb8] [&>i]:bg-[#5a8fd0]',
 		},

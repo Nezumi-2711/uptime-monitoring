@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { AlertTriangle, ArrowRight, Database, History, Pencil, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import type { Monitor } from '../../api/monitors';
+import { monitorState } from '../../lib/monitor-status';
 import { navigate } from '../../lib/router';
 import { useDeleteMonitorMutation, useMonitorsQuery, useRunCheckMutation, useUpdateMonitorMutation } from '../../queries/monitors';
 import { SiteIcon } from '../SiteIcon';
@@ -21,12 +22,6 @@ function formatCheckedAt(value: string | null) {
 		dateStyle: 'medium',
 		timeStyle: 'short',
 	}).format(new Date(value));
-}
-
-function monitorStatus(monitor: Monitor): { label: string; className: BadgeVariant } {
-	if (monitor.lastOk === true) return { label: 'Up', className: 'online' };
-	if (monitor.lastOk === false) return { label: 'Down', className: 'offline' };
-	return { label: 'Not checked', className: 'checking' };
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -119,7 +114,7 @@ export function MonitorListPanel({ formOpen, onAddMonitor, onEdit }: MonitorList
 						<span>Actions</span>
 					</div>
 					{monitors.map((monitor) => {
-						const status = monitorStatus(monitor);
+						const status = monitorState(monitor);
 						const checking = checkMutation.isPending && checkMutation.variables === monitor.id;
 						const deleting = deleteMutation.isPending && deleteMutation.variables === monitor.id;
 						const toggling = updateMutation.isPending && updateMutation.variables?.id === monitor.id;
@@ -145,12 +140,16 @@ export function MonitorListPanel({ formOpen, onAddMonitor, onEdit }: MonitorList
 									</div>
 								</div>
 								<div className="monitor-result">
-									<Badge variant={checking ? 'checking' : status.className}>{checking ? 'Checking' : status.label}</Badge>
+									<Badge variant={checking ? 'checking' : status.variant} title={status.detail ?? undefined}>
+										{checking ? 'Checking' : status.label}
+									</Badge>
 									<code>
 										{monitor.lastStatusCode === null ? '—' : `HTTP ${monitor.lastStatusCode}`} ·{' '}
 										{monitor.lastLatencyMs === null ? '—' : `${monitor.lastLatencyMs} ms`}
 									</code>
-									<small title={monitor.lastError ?? undefined}>{monitor.lastError ?? formatCheckedAt(monitor.lastCheckedAt)}</small>
+									<small title={status.detail ?? monitor.lastError ?? undefined}>
+										{status.detail ?? monitor.lastError ?? formatCheckedAt(monitor.lastCheckedAt)}
+									</small>
 								</div>
 								<div className="row-actions" aria-label={`Actions for ${monitor.name}`}>
 									<Button

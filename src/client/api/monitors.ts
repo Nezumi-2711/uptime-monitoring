@@ -12,6 +12,9 @@ export type Monitor = {
 	timeoutMs: number;
 	enabled: boolean;
 	alertsEnabled: boolean;
+	retryCount: number;
+	failureThreshold: number;
+	consecutiveFailures: number;
 	lastOk: boolean | null;
 	lastStatusCode: number | null;
 	lastLatencyMs: number | null;
@@ -28,6 +31,8 @@ export type MonitorInput = {
 	expectedStatus: number;
 	intervalSeconds: number;
 	timeoutMs: number;
+	retryCount?: number;
+	failureThreshold?: number;
 	enabled?: boolean;
 	alertsEnabled?: boolean;
 };
@@ -37,13 +42,21 @@ export type CheckResult = {
 	statusCode: number | null;
 	latencyMs: number;
 	error: string | null;
+	attempts: number;
 };
 
-export type Check = CheckResult & {
+export type Check = {
 	id: number;
 	monitorId: number;
+	ok: boolean;
+	statusCode: number | null;
+	latencyMs: number;
+	error: string | null;
 	checkedAt: string;
+	maintenance: boolean;
 };
+
+export type CheckTransition = 'opened' | 'pending' | 'cleared' | 'resolved' | null;
 
 export type Incident = {
 	id: number;
@@ -109,5 +122,5 @@ export function deleteMonitor(id: number) {
 }
 
 export function runMonitorCheck(id: number) {
-	return postJson<{ result: CheckResult; monitor: Monitor }>(`/api/monitors/${id}/check`);
+	return postJson<{ result: CheckResult; transition: CheckTransition; monitor: Monitor }>(`/api/monitors/${id}/check`);
 }

@@ -14,6 +14,8 @@ export const DEFAULT_MONITOR_INPUT: MonitorInput = {
 	expectedStatus: 200,
 	intervalSeconds: 300,
 	timeoutMs: 10_000,
+	retryCount: 1,
+	failureThreshold: 2,
 	enabled: true,
 };
 
@@ -43,6 +45,8 @@ function monitorInput(monitor: Monitor | null): MonitorInput {
 		expectedStatus: monitor.expectedStatus,
 		intervalSeconds: monitor.intervalSeconds,
 		timeoutMs: monitor.timeoutMs,
+		retryCount: monitor.retryCount,
+		failureThreshold: monitor.failureThreshold,
 		enabled: monitor.enabled,
 		alertsEnabled: monitor.alertsEnabled,
 	};
@@ -87,7 +91,9 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 				<DialogHeader>
 					<p className="overline">Configuration</p>
 					<DialogTitle>{editing ? `Edit ${editing.name}` : 'Add a monitor'}</DialogTitle>
-					<DialogDescription>Checks run on the configured schedule, with a minimum interval of five minutes.</DialogDescription>
+					<DialogDescription>
+						Checks run at least every five minutes. Failures are retried immediately and must repeat before an incident is published.
+					</DialogDescription>
 				</DialogHeader>
 				<form className="monitor-form" onSubmit={handleSubmit}>
 					<label className="field field-name" htmlFor="monitor-name">
@@ -166,6 +172,39 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 							required
 						/>
 					</label>
+					<div className="field">
+						<span id="monitor-retries-label">Retries after a failure</span>
+						<Select value={String(form.retryCount ?? 1)} onValueChange={(value) => setForm({ ...form, retryCount: Number(value) })}>
+							<SelectTrigger aria-labelledby="monitor-retries-label">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="0">No retry</SelectItem>
+								{[1, 2, 3].map((count) => (
+									<SelectItem key={count} value={String(count)}>{`${count} ${count === 1 ? 'retry' : 'retries'}`}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<small>Retried immediately, so a sub-second blip never reaches the status page.</small>
+					</div>
+					<div className="field">
+						<span id="monitor-threshold-label">Confirmations before alerting</span>
+						<Select
+							value={String(form.failureThreshold ?? 2)}
+							onValueChange={(value) => setForm({ ...form, failureThreshold: Number(value) })}
+						>
+							<SelectTrigger aria-labelledby="monitor-threshold-label">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="1">1 — alert immediately</SelectItem>
+								{Array.from({ length: 9 }, (_, index) => index + 2).map((count) => (
+									<SelectItem key={count} value={String(count)}>{`${count} consecutive failed checks`}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<small>Confirmed after about {Math.round(((form.failureThreshold ?? 2) * form.intervalSeconds) / 60)} minutes.</small>
+					</div>
 					<div className="toggle-field">
 						<Switch id="monitor-enabled" checked={form.enabled ?? true} onCheckedChange={(enabled) => setForm({ ...form, enabled })} />
 						<label htmlFor="monitor-enabled">Enable scheduled checks</label>

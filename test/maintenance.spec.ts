@@ -36,7 +36,10 @@ async function resetDatabase() {
 async function insertMonitor(lastOk = 1) {
 	const now = Date.now();
 	const result = await env.DB.prepare(
-		"INSERT INTO monitors (name, url, method, expected_status, interval_seconds, timeout_ms, enabled, alerts_enabled, last_ok, created_at, updated_at) VALUES ('API', 'https://example.com', 'GET', 200, 300, 10000, 1, 1, ?, ?, ?)",
+		`INSERT INTO monitors
+		 (name, url, method, expected_status, interval_seconds, timeout_ms, retry_count, failure_threshold,
+		  consecutive_failures, enabled, alerts_enabled, last_ok, created_at, updated_at)
+		 VALUES ('API', 'https://example.com', 'GET', 200, 300, 10000, 0, 1, 0, 1, 1, ?, ?, ?)`,
 	)
 		.bind(lastOk, now, now)
 		.run();
@@ -78,18 +81,21 @@ describe('maintenance windows', () => {
 
 	it('records failed probes as maintenance without incidents or monitor state changes', async () => {
 		const id = await insertMonitor(1);
+		await env.DB.prepare('UPDATE monitors SET retry_count = 3, consecutive_failures = 1 WHERE id = ?').bind(id).run();
 		await insertActiveWindow(id);
 		const fetchMock = vi.fn(async () => new Response(null, { status: 503 }));
 		vi.stubGlobal('fetch', fetchMock);
 
 		await runDueChecks(env);
 		const check = await env.DB.prepare('SELECT maintenance, ok FROM checks WHERE monitor_id = ?').bind(id).first();
-		const monitor = await env.DB.prepare('SELECT last_ok, last_status_code FROM monitors WHERE id = ?').bind(id).first();
+		const monitor = await env.DB.prepare('SELECT last_ok, consecutive_failures, last_status_code FROM monitors WHERE id = ?')
+			.bind(id)
+			.first();
 		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
 			.bind(id)
 			.first<{ count: number }>();
 		expect(check).toMatchObject({ maintenance: 1, ok: 0 });
-		expect(monitor).toMatchObject({ last_ok: 1, last_status_code: 503 });
+		expect(monitor).toMatchObject({ last_ok: 1, consecutive_failures: 1, last_status_code: 503 });
 		expect(incident?.count).toBe(0);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});

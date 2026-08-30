@@ -2,7 +2,7 @@ import { and, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { generateIncidentMessage } from '../ai/incident-message';
 import { buildResultStatements } from '../checks/persist-result';
-import { runCheck } from '../checks/run-check';
+import { MAX_RETRY_COUNT, runCheckWithRetries } from '../checks/run-check';
 import { getDb } from '../db/client';
 import { checks, incidentMonitors, incidents, maintenanceWindowMonitors, monitors } from '../db/schema';
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
@@ -19,6 +19,8 @@ type ParsedMonitorInput = {
 	expectedStatus?: number;
 	intervalSeconds?: number;
 	timeoutMs?: number;
+	retryCount?: number;
+	failureThreshold?: number;
 	enabled?: boolean;
 	alertsEnabled?: boolean;
 };
@@ -272,6 +274,16 @@ export function parseMonitorInput(body: unknown, partial = false): ParseResult {
 			value[key] = parsed.value;
 		}
 	}
+	for (const [key, label, minimum, maximum] of [
+		['retryCount', 'retryCount', 0, MAX_RETRY_COUNT],
+		['failureThreshold', 'failureThreshold', 1, 10],
+	] as const) {
+		if (key in body) {
+			const parsed = parseInteger(body[key], label, minimum, maximum);
+			if (!parsed.ok) return parsed;
+			value[key] = parsed.value;
+		}
+	}
 
 	if ('enabled' in body) {
 		if (typeof body.enabled !== 'boolean') {
@@ -494,6 +506,8 @@ monitorRoutes.post('/', async (context) => {
 			expectedStatus: parsed.value.expectedStatus!,
 			intervalSeconds: parsed.value.intervalSeconds!,
 			timeoutMs: parsed.value.timeoutMs!,
+			retryCount: parsed.value.retryCount ?? 1,
+			failureThreshold: parsed.value.failureThreshold ?? 2,
 			enabled: parsed.value.enabled ?? true,
 			alertsEnabled: parsed.value.alertsEnabled ?? true,
 			createdAt: now,
@@ -556,12 +570,12 @@ monitorRoutes.post('/:id/check', async (context) => {
 	const [monitor] = await db.select().from(monitors).where(eq(monitors.id, id)).limit(1);
 	if (!monitor) return context.json({ message: 'Monitor not found' }, 404);
 
-	const result = await runCheck(monitor);
+	const result = await runCheckWithRetries(monitor);
 	const checkedAt = new Date();
 	const activeMaintenance = await loadActiveMaintenance(db, checkedAt);
 	const { statements, transition } = buildResultStatements(db, monitor, result, checkedAt, activeMaintenance.has(monitor.id));
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
-	if (transition) {
+	if (transition === 'opened' || transition === 'resolved') {
 		await sendIncidentAlert(context.env, { monitor, kind: transition, result, at: checkedAt });
 		if (transition === 'opened') {
 			await generateIncidentMessage(context.env, { monitor, result });
@@ -569,7 +583,7 @@ monitorRoutes.post('/:id/check', async (context) => {
 	}
 	const [updated] = await db.select().from(monitors).where(eq(monitors.id, monitor.id)).limit(1);
 
-	return context.json({ result, monitor: updated });
+	return context.json({ result, transition, monitor: updated });
 });
 
 export default monitorRoutes;

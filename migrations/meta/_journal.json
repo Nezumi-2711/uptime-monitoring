@@ -50,6 +50,13 @@
       "when": 1788012122846,
       "tag": "0006_gifted_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788057318682,
+      "tag": "0007_true_mauler",
+      "breakpoints": true
     }
   ]
 }

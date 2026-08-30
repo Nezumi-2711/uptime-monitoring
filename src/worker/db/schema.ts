@@ -58,6 +58,13 @@ export const monitors = sqliteTable(
 		timeoutMs: integer('timeout_ms').notNull().default(10_000),
 		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
 		alertsEnabled: integer('alerts_enabled', { mode: 'boolean' }).notNull().default(true),
+		/** Number of immediate retries after a failed attempt. Zero disables retries. */
+		retryCount: integer('retry_count').notNull().default(1),
+		/** Consecutive failed checks required before confirming an outage. */
+		failureThreshold: integer('failure_threshold').notNull().default(2),
+		/** Failures since the last successful check. Maintenance checks do not change this value. */
+		consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+		/** Confirmed state, not the raw latest result. */
 		lastOk: integer('last_ok', { mode: 'boolean' }),
 		lastStatusCode: integer('last_status_code'),
 		lastLatencyMs: integer('last_latency_ms'),

@@ -1,7 +1,7 @@
 import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runDueChecks } from '../src/worker/checks/run-due-checks';
+import { MAX_RETRY_ATTEMPTS_PER_RUN, runDueChecks } from '../src/worker/checks/run-due-checks';
 
 async function clearMonitoringTables() {
 	await env.DB.batch([
@@ -12,6 +12,7 @@ async function clearMonitoringTables() {
 		env.DB.prepare('DELETE FROM incident_monitors'),
 		env.DB.prepare('DELETE FROM incidents'),
 		env.DB.prepare('DELETE FROM monitor_daily_stats'),
+		env.DB.prepare('DELETE FROM ai_settings'),
 		env.DB.prepare('DELETE FROM notification_settings'),
 		env.DB.prepare('DELETE FROM monitors'),
 	]);
@@ -26,6 +27,9 @@ async function insertMonitor(overrides: Record<string, unknown> = {}) {
 		expected_status: 200,
 		interval_seconds: 300,
 		timeout_ms: 10_000,
+		retry_count: 0,
+		failure_threshold: 2,
+		consecutive_failures: 0,
 		enabled: 1,
 		last_checked_at: null,
 		created_at: now,
@@ -35,8 +39,9 @@ async function insertMonitor(overrides: Record<string, unknown> = {}) {
 	const result = await env.DB.prepare(
 		`
 		INSERT INTO monitors
-		(name, url, method, expected_status, interval_seconds, timeout_ms, enabled, alerts_enabled, last_ok, last_checked_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+		(name, url, method, expected_status, interval_seconds, timeout_ms, retry_count, failure_threshold,
+		 consecutive_failures, enabled, alerts_enabled, last_ok, last_checked_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
 	`,
 	)
 		.bind(
@@ -46,6 +51,9 @@ async function insertMonitor(overrides: Record<string, unknown> = {}) {
 			values.expected_status,
 			values.interval_seconds,
 			values.timeout_ms,
+			values.retry_count,
+			values.failure_threshold,
+			values.consecutive_failures,
 			values.enabled,
 			overrides.last_ok ?? null,
 			values.last_checked_at,
@@ -62,7 +70,10 @@ describe('scheduled monitor checks', () => {
 		await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
 	});
 	beforeEach(clearMonitoringTables);
-	afterEach(() => vi.unstubAllGlobals());
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
 
 	it('records a successful check and updates the monitor snapshot', async () => {
 		const id = await insertMonitor();
@@ -72,7 +83,7 @@ describe('scheduled monitor checks', () => {
 		);
 
 		const summary = await runDueChecks(env);
-		expect(summary).toEqual({ checked: 1, up: 1, down: 0 });
+		expect(summary).toEqual({ checked: 1, up: 1, down: 0, pending: 0, opened: 0, retries: 0 });
 
 		const monitor = await env.DB.prepare('SELECT last_ok, last_status_code, last_latency_ms, last_checked_at FROM monitors WHERE id = ?')
 			.bind(id)
@@ -87,39 +98,180 @@ describe('scheduled monitor checks', () => {
 		expect(checkCount?.count).toBe(1);
 	});
 
-	it('records a mismatched status as down with a useful error', async () => {
-		const id = await insertMonitor();
+	it('records a first mismatched status as pending without opening an incident', async () => {
+		const id = await insertMonitor({ last_ok: 1 });
+		const fetchMock = vi.fn(async () => new Response(null, { status: 500 }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const summary = await runDueChecks(env);
+		expect(summary).toEqual({ checked: 1, up: 0, down: 1, pending: 1, opened: 0, retries: 0 });
+
+		const monitor = await env.DB.prepare('SELECT last_ok, consecutive_failures, last_status_code, last_error FROM monitors WHERE id = ?')
+			.bind(id)
+			.first<{ last_ok: number; consecutive_failures: number; last_status_code: number; last_error: string }>();
+		expect(monitor).toEqual({
+			last_ok: 1,
+			consecutive_failures: 1,
+			last_status_code: 500,
+			last_error: 'Expected HTTP 200, received 500',
+		});
+		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
+			.bind(id)
+			.first<{ count: number }>();
+		expect(incident?.count).toBe(0);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('opens an incident once the failure threshold is reached', async () => {
+		const id = await insertMonitor({ last_ok: 1 });
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async () => new Response(null, { status: 500 })),
 		);
 
+		await runDueChecks(env);
+		await env.DB.prepare('UPDATE monitors SET last_checked_at = NULL WHERE id = ?').bind(id).run();
 		const summary = await runDueChecks(env);
-		expect(summary).toEqual({ checked: 1, up: 0, down: 1 });
 
-		const monitor = await env.DB.prepare('SELECT last_ok, last_status_code, last_error FROM monitors WHERE id = ?')
+		expect(summary.opened).toBe(1);
+		const monitor = await env.DB.prepare('SELECT last_ok, consecutive_failures FROM monitors WHERE id = ?')
 			.bind(id)
-			.first<{ last_ok: number; last_status_code: number; last_error: string }>();
-		expect(monitor).toEqual({
-			last_ok: 0,
-			last_status_code: 500,
-			last_error: 'Expected HTTP 200, received 500',
-		});
-		const incident = await env.DB.prepare(
-			'SELECT im.monitor_id, i.resolved_at, i.start_status_code, i.start_error FROM incidents i JOIN incident_monitors im ON im.incident_id = i.id WHERE im.monitor_id = ?',
-		)
+			.first<{ last_ok: number; consecutive_failures: number }>();
+		expect(monitor).toEqual({ last_ok: 0, consecutive_failures: 2 });
+		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
 			.bind(id)
-			.first<{ monitor_id: number; resolved_at: number | null; start_status_code: number; start_error: string }>();
-		expect(incident).toEqual({
-			monitor_id: id,
-			resolved_at: null,
-			start_status_code: 500,
-			start_error: 'Expected HTTP 200, received 500',
-		});
+			.first<{ count: number }>();
+		expect(incident?.count).toBe(1);
+	});
+
+	it('resets a pending failure when the next check succeeds', async () => {
+		const id = await insertMonitor({ last_ok: 1, consecutive_failures: 1 });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 200 })),
+		);
+		await runDueChecks(env);
+		const monitor = await env.DB.prepare('SELECT last_ok, consecutive_failures FROM monitors WHERE id = ?')
+			.bind(id)
+			.first<{ last_ok: number; consecutive_failures: number }>();
+		expect(monitor).toEqual({ last_ok: 1, consecutive_failures: 0 });
+	});
+
+	it('opens immediately when the threshold is one', async () => {
+		const id = await insertMonitor({ last_ok: 1, failure_threshold: 1 });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 503 })),
+		);
+		const summary = await runDueChecks(env);
+		expect(summary.opened).toBe(1);
+		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
+			.bind(id)
+			.first<{ count: number }>();
+		expect(incident?.count).toBe(1);
+	});
+
+	it('retries a failed attempt and persists only the recovered result', async () => {
+		const id = await insertMonitor({ last_ok: 1, retry_count: 1 });
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response(null, { status: 500 }))
+			.mockResolvedValueOnce(new Response(null, { status: 200 }));
+		vi.stubGlobal('fetch', fetchMock);
+		const summary = await runDueChecks(env);
+		expect(summary).toMatchObject({ up: 1, retries: 1, pending: 0 });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const checks = await env.DB.prepare('SELECT ok FROM checks WHERE monitor_id = ?').bind(id).all<{ ok: number }>();
+		expect(checks.results).toEqual([{ ok: 1 }]);
+	});
+
+	it('records one failed check after exhausting retries', async () => {
+		const id = await insertMonitor({ last_ok: 1, retry_count: 2 });
+		const fetchMock = vi.fn(async () => new Response(null, { status: 500 }));
+		vi.stubGlobal('fetch', fetchMock);
+		await runDueChecks(env);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		const checks = await env.DB.prepare('SELECT ok FROM checks WHERE monitor_id = ?').bind(id).all<{ ok: number }>();
+		expect(checks.results).toEqual([{ ok: 0 }]);
+	});
+
+	it('does not retry a monitor that is already confirmed down', async () => {
+		await insertMonitor({ last_ok: 0, consecutive_failures: 2, retry_count: 3 });
+		const fetchMock = vi.fn(async () => new Response(null, { status: 500 }));
+		vi.stubGlobal('fetch', fetchMock);
+		const summary = await runDueChecks(env);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(summary.retries).toBe(0);
+	});
+
+	it('caps retry attempts across a scheduled run', async () => {
+		vi.useFakeTimers();
+		for (let index = 0; index < 40; index += 1) {
+			await insertMonitor({ name: `Monitor ${index}`, url: `https://monitor-${index}.example.com`, last_ok: 1, retry_count: 3 });
+		}
+		const fetchMock = vi.fn(async () => new Response(null, { status: 500 }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const run = runDueChecks(env);
+		await vi.runAllTimersAsync();
+		const summary = await run;
+
+		expect(summary.retries).toBe(MAX_RETRY_ATTEMPTS_PER_RUN);
+		expect(fetchMock).toHaveBeenCalledTimes(40 + MAX_RETRY_ATTEMPTS_PER_RUN);
+	});
+
+	it('does not send a webhook or generate AI copy until a failure is confirmed', async () => {
+		const id = await insertMonitor({ last_ok: 1, retry_count: 0 });
+		const now = Date.now();
+		await env.DB.batch([
+			env.DB.prepare(
+				"INSERT INTO notification_settings (id, webhook_url, webhook_enabled, created_at, updated_at) VALUES (1, 'https://hooks.example.test/events', 1, ?, ?)",
+			).bind(now, now),
+			env.DB.prepare(
+				"INSERT INTO ai_settings (id, enabled, base_url, api_key, model, created_at, updated_at) VALUES (1, 1, 'https://ai.example.test/v1', 'secret', 'test-model', ?, ?)",
+			).bind(now, now),
+		]);
+		const webhookBodies: Array<Record<string, unknown>> = [];
+		let aiCalls = 0;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(input.toString());
+				if (url.hostname === 'hooks.example.test') {
+					webhookBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+					return new Response(null, { status: 204 });
+				}
+				if (url.hostname === 'ai.example.test') {
+					aiCalls += 1;
+					return Response.json({
+						choices: [
+							{
+								message: {
+									content: 'Some visitors may be unable to use the service. The team has been alerted and restoration work is underway.',
+								},
+							},
+						],
+					});
+				}
+				return new Response(null, { status: 500 });
+			}),
+		);
+
+		await runDueChecks(env);
+		expect(webhookBodies).toEqual([]);
+		expect(aiCalls).toBe(0);
+		expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_updates').first<{ count: number }>())?.count).toBe(0);
+
+		await env.DB.prepare('UPDATE monitors SET last_checked_at = NULL WHERE id = ?').bind(id).run();
+		await runDueChecks(env);
+		expect(webhookBodies).toHaveLength(1);
+		expect(webhookBodies[0]).toMatchObject({ event: 'down' });
+		expect(aiCalls).toBe(1);
+		expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_updates').first<{ count: number }>())?.count).toBe(1);
 	});
 
 	it('does not open duplicate incidents while a monitor stays down', async () => {
-		const id = await insertMonitor({ last_ok: 0 });
+		const id = await insertMonitor({ last_ok: 0, consecutive_failures: 2 });
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async () => new Response(null, { status: 503 })),
@@ -132,8 +284,18 @@ describe('scheduled monitor checks', () => {
 	});
 
 	it('links each auto incident to the correct monitor in one scheduled batch', async () => {
-		const firstId = await insertMonitor({ name: 'First', url: 'https://first.example.com' });
-		const secondId = await insertMonitor({ name: 'Second', url: 'https://second.example.com' });
+		const firstId = await insertMonitor({
+			name: 'First',
+			url: 'https://first.example.com',
+			last_ok: 1,
+			failure_threshold: 1,
+		});
+		const secondId = await insertMonitor({
+			name: 'Second',
+			url: 'https://second.example.com',
+			last_ok: 1,
+			failure_threshold: 1,
+		});
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async () => new Response(null, { status: 503 })),
@@ -149,7 +311,7 @@ describe('scheduled monitor checks', () => {
 	});
 
 	it('resolves the open incident on recovery', async () => {
-		const id = await insertMonitor({ last_ok: 0 });
+		const id = await insertMonitor({ last_ok: 0, consecutive_failures: 2 });
 		const startedAt = Date.now() - 60_000;
 		const inserted = await env.DB.prepare(
 			"INSERT INTO incidents (status, impact, source, started_at, start_status_code, start_error, created_at, updated_at) VALUES ('investigating', 'major', 'auto', ?, 500, 'Down', ?, ?)",
@@ -168,6 +330,10 @@ describe('scheduled monitor checks', () => {
 			.first<{ resolved_at: number | null; duration_ms: number | null }>();
 		expect(incident?.resolved_at).toEqual(expect.any(Number));
 		expect(incident?.duration_ms).toBeGreaterThanOrEqual(60_000);
+		const monitor = await env.DB.prepare('SELECT last_ok, consecutive_failures FROM monitors WHERE id = ?')
+			.bind(id)
+			.first<{ last_ok: number; consecutive_failures: number }>();
+		expect(monitor).toEqual({ last_ok: 1, consecutive_failures: 0 });
 	});
 
 	it('skips disabled and not-yet-due monitors', async () => {
@@ -177,7 +343,7 @@ describe('scheduled monitor checks', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		const summary = await runDueChecks(env);
-		expect(summary).toEqual({ checked: 0, up: 0, down: 0 });
+		expect(summary).toEqual({ checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0 });
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });

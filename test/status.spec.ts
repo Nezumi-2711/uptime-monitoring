@@ -42,21 +42,25 @@ async function insertMonitor(input: {
 	lastStatusCode?: number | null;
 	lastLatencyMs?: number | null;
 	lastError?: string | null;
+	consecutiveFailures?: number;
+	failureThreshold?: number;
 }) {
 	const now = Date.now();
 	const result = await env.DB.prepare(
 		`
 		INSERT INTO monitors (
 			name, url, method, expected_status, interval_seconds, timeout_ms,
-			enabled, alerts_enabled, last_ok, last_status_code, last_latency_ms,
+			enabled, alerts_enabled, failure_threshold, consecutive_failures, last_ok, last_status_code, last_latency_ms,
 			last_error, last_checked_at, created_at, updated_at
-		) VALUES (?, ?, 'GET', 200, 300, 10000, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, 'GET', 200, 300, 10000, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 	)
 		.bind(
 			input.name,
 			input.url ?? `https://${input.name.toLowerCase()}.example.com/health`,
 			input.enabled === false ? 0 : 1,
+			input.failureThreshold ?? 2,
+			input.consecutiveFailures ?? 0,
 			input.lastOk === null || input.lastOk === undefined ? null : input.lastOk ? 1 : 0,
 			input.lastStatusCode ?? null,
 			input.lastLatencyMs ?? null,
@@ -103,9 +107,34 @@ describe('public status API', () => {
 			uptime90d: null,
 			history: [],
 		});
-		for (const privateField of ['url', 'lastError', 'lastStatusCode', 'lastLatencyMs', 'method', 'timeoutMs']) {
+		for (const privateField of [
+			'url',
+			'lastError',
+			'lastStatusCode',
+			'lastLatencyMs',
+			'method',
+			'timeoutMs',
+			'retryCount',
+			'failureThreshold',
+			'consecutiveFailures',
+		]) {
 			expect(body.services[0]).not.toHaveProperty(privateField);
 		}
+	});
+
+	it('keeps a service operational while failures are unconfirmed', async () => {
+		await insertMonitor({
+			name: 'Flaky API',
+			lastOk: true,
+			consecutiveFailures: 1,
+			failureThreshold: 2,
+			lastStatusCode: 500,
+			lastError: 'Expected HTTP 200, received 500',
+		});
+
+		const body = await (await statusFetch()).json<PublicStatusResponse>();
+		expect(body.overall).toBe('operational');
+		expect(body.services[0]).toMatchObject({ status: 'up', message: null });
 	});
 
 	it('excludes disabled monitors and reports degraded health for a partial outage', async () => {

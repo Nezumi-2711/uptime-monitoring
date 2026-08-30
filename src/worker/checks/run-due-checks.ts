@@ -4,17 +4,22 @@ import { getDb } from '../db/client';
 import { monitors } from '../db/schema';
 import { loadActiveMaintenance } from '../maintenance/windows';
 import { sendIncidentAlert } from '../notifications/webhook';
-import { buildResultStatements } from './persist-result';
-import { runCheck } from './run-check';
+import { type AlertTransition, buildResultStatements } from './persist-result';
+import { runCheck, runCheckWithRetries, type RetryBudget } from './run-check';
 
 const MAX_MONITORS_PER_RUN = 40;
 const MAX_AI_MESSAGES_PER_RUN = 10;
 const CONCURRENCY = 10;
+export const MAX_RETRY_ATTEMPTS_PER_RUN = 60;
+const RETRY_DEADLINE_MS = 90_000;
 
 export type DueCheckSummary = {
 	checked: number;
 	up: number;
 	down: number;
+	pending: number;
+	opened: number;
+	retries: number;
 };
 
 export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitUntil'>): Promise<DueCheckSummary> {
@@ -32,32 +37,35 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		.orderBy(sql`${monitors.lastCheckedAt} ASC NULLS FIRST`)
 		.limit(MAX_MONITORS_PER_RUN);
 
-	if (due.length === 0) return { checked: 0, up: 0, down: 0 };
+	if (due.length === 0) return { checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0 };
 	const activeMaintenance = await loadActiveMaintenance(db, new Date());
+	const budget: RetryBudget = { remaining: MAX_RETRY_ATTEMPTS_PER_RUN, deadline: Date.now() + RETRY_DEADLINE_MS };
 
 	const completed: Array<{
 		monitor: (typeof due)[number];
-		result: Awaited<ReturnType<typeof runCheck>>;
+		result: Awaited<ReturnType<typeof runCheckWithRetries>>;
 		checkedAt: Date;
+		maintenance: boolean;
 	}> = [];
 
 	for (let offset = 0; offset < due.length; offset += CONCURRENCY) {
 		const batch = due.slice(offset, offset + CONCURRENCY);
 		const results = await Promise.all(
-			batch.map(async (monitor) => ({
-				monitor,
-				result: await runCheck(monitor),
-				checkedAt: new Date(),
-			})),
+			batch.map(async (monitor) => {
+				const maintenance = activeMaintenance.has(monitor.id);
+				const retryable = !maintenance && monitor.retryCount > 0 && monitor.lastOk !== false;
+				const result = retryable ? await runCheckWithRetries(monitor, budget) : { ...(await runCheck(monitor)), attempts: 1 };
+				return { monitor, result, checkedAt: new Date(), maintenance };
+			}),
 		);
 		completed.push(...results);
 	}
 
-	const persisted = completed.map(({ monitor, result, checkedAt }) => ({
+	const persisted = completed.map(({ monitor, result, checkedAt, maintenance }) => ({
 		monitor,
 		result,
 		checkedAt,
-		...buildResultStatements(db, monitor, result, checkedAt, activeMaintenance.has(monitor.id)),
+		...buildResultStatements(db, monitor, result, checkedAt, maintenance),
 	}));
 	const statements = persisted.flatMap((item) => item.statements);
 
@@ -65,11 +73,12 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 
 	let aiMessagesQueued = 0;
 	const notifications = persisted.flatMap((item) => {
-		if (item.transition === null) return [];
+		if (item.transition !== 'opened' && item.transition !== 'resolved') return [];
+		const kind: AlertTransition = item.transition;
 		const work: Promise<unknown>[] = [
 			sendIncidentAlert(env, {
 				monitor: item.monitor,
-				kind: item.transition,
+				kind,
 				result: item.result,
 				at: item.checkedAt,
 			}),
@@ -87,5 +96,12 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 	}
 
 	const up = completed.reduce((count, item) => count + Number(item.result.ok), 0);
-	return { checked: completed.length, up, down: completed.length - up };
+	return {
+		checked: completed.length,
+		up,
+		down: completed.length - up,
+		pending: persisted.reduce((count, item) => count + Number(item.transition === 'pending'), 0),
+		opened: persisted.reduce((count, item) => count + Number(item.transition === 'opened'), 0),
+		retries: completed.reduce((count, item) => count + item.result.attempts - 1, 0),
+	};
 }

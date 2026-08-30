@@ -4,7 +4,9 @@ import { checks, incidentMonitors, incidents, incidentUpdates, monitors } from '
 import { RECOVERY_UPDATE_BODY } from '../ai/fallback-message';
 import type { CheckResult, Monitor } from './run-check';
 
-export type IncidentTransition = 'opened' | 'resolved' | null;
+/** Only opened and resolved transitions are allowed to send alerts. */
+export type CheckTransition = 'opened' | 'pending' | 'cleared' | 'resolved' | null;
+export type AlertTransition = Extract<CheckTransition, 'opened' | 'resolved'>;
 
 type BatchStatement = Parameters<Database['batch']>[0][number];
 
@@ -19,10 +21,39 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 			checkedAt,
 			maintenance,
 		}),
+	];
+
+	if (maintenance) {
+		statements.push(
+			db
+				.update(monitors)
+				.set({
+					lastStatusCode: result.statusCode,
+					lastLatencyMs: result.latencyMs,
+					lastError: result.error,
+					lastCheckedAt: checkedAt,
+					updatedAt: checkedAt,
+				})
+				.where(eq(monitors.id, monitor.id)),
+		);
+		return { statements, transition: null as CheckTransition, consecutiveFailures: monitor.consecutiveFailures };
+	}
+
+	const threshold = Math.max(1, monitor.failureThreshold);
+	const previousFailures = monitor.consecutiveFailures;
+	// This deliberately uses the monitor snapshot. Concurrent manual and scheduled checks may lose one increment,
+	// which delays confirmation by one check but cannot publish a false incident.
+	const nextFailures = result.ok ? 0 : previousFailures + 1;
+	const wasDown = monitor.lastOk === false;
+	const isDown = !result.ok && nextFailures >= threshold;
+	const confirmed = result.ok ? true : isDown ? false : undefined;
+
+	statements.push(
 		db
 			.update(monitors)
 			.set({
-				...(maintenance ? {} : { lastOk: result.ok }),
+				...(confirmed === undefined ? {} : { lastOk: confirmed }),
+				consecutiveFailures: nextFailures,
 				lastStatusCode: result.statusCode,
 				lastLatencyMs: result.latencyMs,
 				lastError: result.error,
@@ -30,12 +61,10 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 				updatedAt: checkedAt,
 			})
 			.where(eq(monitors.id, monitor.id)),
-	];
+	);
 
-	if (maintenance) return { statements, transition: null };
-
-	let transition: IncidentTransition = null;
-	if (monitor.lastOk !== false && !result.ok) {
+	let transition: CheckTransition = null;
+	if (!wasDown && isDown) {
 		statements.push(
 			db.insert(incidents).values({
 				status: 'investigating',
@@ -50,7 +79,7 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 			db.insert(incidentMonitors).values({ incidentId: sql`last_insert_rowid()`, monitorId: monitor.id }),
 		);
 		transition = 'opened';
-	} else if (monitor.lastOk === false && result.ok) {
+	} else if (wasDown && result.ok) {
 		const openIncidentIds = db
 			.select({ id: incidentMonitors.incidentId })
 			.from(incidentMonitors)
@@ -82,7 +111,8 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 				.where(and(eq(incidents.source, 'auto'), isNull(incidents.resolvedAt), inArray(incidents.id, openIncidentIds))),
 		);
 		transition = 'resolved';
-	}
+	} else if (!wasDown && !result.ok) transition = 'pending';
+	else if (!wasDown && result.ok && previousFailures > 0) transition = 'cleared';
 
-	return { statements, transition };
+	return { statements, transition, consecutiveFailures: nextFailures };
 }

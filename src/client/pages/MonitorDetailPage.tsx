@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, BellOff, CheckCircle2, Clock3, ExternalLink, Pencil, Power, PowerOff, RefreshCw, Trash2 } from 'lucide-react';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Empty, EmptyContent, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
@@ -10,6 +10,7 @@ import { LatencySparkline } from '../components/charts/LatencySparkline';
 import { UptimeBar } from '../components/charts/UptimeBar';
 import { DeleteMonitorDialog } from '../components/dashboard/DeleteMonitorDialog';
 import { INTERVAL_OPTIONS, MonitorFormDialog } from '../components/dashboard/MonitorFormDialog';
+import { monitorState } from '../lib/monitor-status';
 import { navigate } from '../lib/router';
 import {
 	useDeleteMonitorMutation,
@@ -33,12 +34,6 @@ function formatDuration(ms: number | null, startedAt: string) {
 	return `${Math.round(duration / 86_400_000)} days`;
 }
 
-function statusDetails(lastOk: boolean | null): { label: string; className: BadgeVariant } {
-	if (lastOk === true) return { label: 'Operational', className: 'online' };
-	if (lastOk === false) return { label: 'Down', className: 'offline' };
-	return { label: 'Awaiting first check', className: 'checking' };
-}
-
 function formatInterval(seconds: number) {
 	return INTERVAL_OPTIONS.find((option) => Number(option.value) === seconds)?.label ?? `${Math.round(seconds / 60)} min`;
 }
@@ -56,7 +51,6 @@ export function MonitorDetailPage({ id }: { id: number }) {
 	const monitor = monitorQuery.data?.monitor;
 	const checks = checksQuery.data?.checks ?? [];
 	const incidents = incidentsQuery.data?.incidents ?? [];
-	const status = statusDetails(monitor?.lastOk ?? null);
 	const openIncident = incidents.find((incident) => incident.resolvedAt === null);
 
 	if (monitorQuery.isPending)
@@ -80,6 +74,7 @@ export function MonitorDetailPage({ id }: { id: number }) {
 				</Empty>
 			</div>
 		);
+	const status = monitorState(monitor);
 
 	return (
 		<div className="dashboard-shell">
@@ -97,7 +92,7 @@ export function MonitorDetailPage({ id }: { id: number }) {
 				</Button>
 				<section className="detail-hero">
 					<div className="detail-title">
-						<span className={`status-orb ${status.className}`} />
+						<span className={`status-orb ${status.variant}`} />
 						<div>
 							<p className="overline">Monitor #{monitor.id}</p>
 							<h1>{monitor.name}</h1>
@@ -108,7 +103,9 @@ export function MonitorDetailPage({ id }: { id: number }) {
 						</div>
 					</div>
 					<div className="detail-actions">
-						<Badge variant={status.className}>{status.label}</Badge>
+						<Badge variant={status.variant} title={status.detail ?? undefined}>
+							{status.label}
+						</Badge>
 						{!monitor.alertsEnabled && (
 							<span className="muted-alert">
 								<BellOff /> Alerts muted

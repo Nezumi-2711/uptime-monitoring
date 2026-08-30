@@ -35,3 +35,26 @@ export async function runCheck(monitor: Monitor): Promise<CheckResult> {
 		};
 	}
 }
+
+export const MAX_RETRY_COUNT = 3;
+const RETRY_BACKOFF_MS = [400, 1_200, 2_500] as const;
+
+export type CheckAttemptResult = CheckResult & { attempts: number };
+export type RetryBudget = { remaining: number; deadline: number };
+
+export async function runCheckWithRetries(monitor: Monitor, budget?: RetryBudget): Promise<CheckAttemptResult> {
+	let result = await runCheck(monitor);
+	if (result.ok) return { ...result, attempts: 1 };
+
+	const allowed = Math.min(Math.max(0, monitor.retryCount), MAX_RETRY_COUNT);
+	let attempts = 1;
+	for (let retry = 0; retry < allowed; retry += 1) {
+		if (budget && (budget.remaining <= 0 || Date.now() >= budget.deadline)) break;
+		if (budget) budget.remaining -= 1;
+		await new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFF_MS[Math.min(retry, RETRY_BACKOFF_MS.length - 1)]));
+		result = await runCheck(monitor);
+		attempts += 1;
+		if (result.ok) break;
+	}
+	return { ...result, attempts };
+}

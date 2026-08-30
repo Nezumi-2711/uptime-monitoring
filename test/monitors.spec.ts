@@ -144,10 +144,25 @@ describe('monitor API', () => {
 	it('creates a valid monitor and returns it in the list', async () => {
 		const cookie = await authenticatedCookie();
 		const response = await createMonitor(cookie);
-		const created = await response.json<{ monitor: { id: number; name: string; enabled: boolean; alertsEnabled: boolean } }>();
+		const created = await response.json<{
+			monitor: {
+				id: number;
+				name: string;
+				enabled: boolean;
+				alertsEnabled: boolean;
+				retryCount: number;
+				failureThreshold: number;
+			};
+		}>();
 
 		expect(response.status).toBe(200);
-		expect(created.monitor).toMatchObject({ name: 'Example', enabled: true, alertsEnabled: true });
+		expect(created.monitor).toMatchObject({
+			name: 'Example',
+			enabled: true,
+			alertsEnabled: true,
+			retryCount: 1,
+			failureThreshold: 2,
+		});
 
 		const listResponse = await apiFetch('/api/monitors', 'GET', cookie);
 		const list = await listResponse.json<{ monitors: Array<{ id: number; url: string }> }>();
@@ -159,6 +174,10 @@ describe('monitor API', () => {
 		[{ url: 'file:///etc/passwd' }, 'Enter a valid http or https URL'],
 		[{ intervalSeconds: 60 }, 'intervalSeconds must be an integer between 300 and 86400'],
 		[{ expectedStatus: 99 }, 'expectedStatus must be an integer between 100 and 599'],
+		[{ retryCount: -1 }, 'retryCount must be an integer between 0 and 3'],
+		[{ retryCount: 4 }, 'retryCount must be an integer between 0 and 3'],
+		[{ failureThreshold: 0 }, 'failureThreshold must be an integer between 1 and 10'],
+		[{ failureThreshold: 11 }, 'failureThreshold must be an integer between 1 and 10'],
 	] as const)('rejects invalid monitor input %o', async (overrides, message) => {
 		const response = await createMonitor(await authenticatedCookie(), overrides);
 		expect(response.status).toBe(400);
@@ -171,15 +190,90 @@ describe('monitor API', () => {
 		const response = await apiFetch(`/api/monitors/${created.monitor.id}`, 'PATCH', cookie, {
 			name: 'Renamed endpoint',
 			enabled: false,
+			retryCount: 3,
+			failureThreshold: 4,
 		});
-		const body = await response.json<{ monitor: { name: string; url: string; enabled: boolean } }>();
+		const body = await response.json<{
+			monitor: { name: string; url: string; enabled: boolean; retryCount: number; failureThreshold: number };
+		}>();
 
 		expect(response.status).toBe(200);
 		expect(body.monitor).toMatchObject({
 			name: 'Renamed endpoint',
 			url: 'https://example.com/health',
 			enabled: false,
+			retryCount: 3,
+			failureThreshold: 4,
 		});
+	});
+
+	it('does not allow clients to set the internal failure counter', async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (await createMonitor(cookie)).json<{ monitor: { id: number } }>();
+		const response = await apiFetch(`/api/monitors/${created.monitor.id}`, 'PATCH', cookie, { consecutiveFailures: 99 });
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ message: 'Provide at least one field to update' });
+	});
+
+	it('returns a pending transition without opening an incident on the first manual failure', async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (await createMonitor(cookie, { retryCount: 0 })).json<{ monitor: { id: number } }>();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 500 })),
+		);
+
+		const response = await apiFetch(`/api/monitors/${created.monitor.id}/check`, 'POST', cookie);
+		const body = await response.json<{
+			transition: string;
+			result: { attempts: number };
+			monitor: { lastOk: boolean | null; consecutiveFailures: number };
+		}>();
+		expect(body).toMatchObject({
+			transition: 'pending',
+			result: { attempts: 1 },
+			monitor: { lastOk: null, consecutiveFailures: 1 },
+		});
+		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incidents').first<{ count: number }>();
+		expect(incident?.count).toBe(0);
+	});
+
+	it('opens an incident when a manual check reaches the confirmation threshold', async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (
+			await createMonitor(cookie, { retryCount: 0, failureThreshold: 2 })
+		).json<{
+			monitor: { id: number };
+		}>();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 500 })),
+		);
+
+		const first = await apiFetch(`/api/monitors/${created.monitor.id}/check`, 'POST', cookie);
+		const second = await apiFetch(`/api/monitors/${created.monitor.id}/check`, 'POST', cookie);
+
+		expect((await first.json<{ transition: string }>()).transition).toBe('pending');
+		expect((await second.json<{ transition: string }>()).transition).toBe('opened');
+		const incident = await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_monitors WHERE monitor_id = ?')
+			.bind(created.monitor.id)
+			.first<{ count: number }>();
+		expect(incident?.count).toBe(1);
+	});
+
+	it('retries a manual check and returns the attempt count', async () => {
+		const cookie = await authenticatedCookie();
+		const created = await (await createMonitor(cookie, { retryCount: 1 })).json<{ monitor: { id: number } }>();
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response(null, { status: 500 }))
+			.mockResolvedValueOnce(new Response(null, { status: 200 }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const response = await apiFetch(`/api/monitors/${created.monitor.id}/check`, 'POST', cookie);
+		const body = await response.json<{ transition: null; result: { ok: boolean; attempts: number } }>();
+		expect(body).toMatchObject({ transition: null, result: { ok: true, attempts: 2 } });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
 	it('returns detail, checks, incidents, and raw stats', async () => {

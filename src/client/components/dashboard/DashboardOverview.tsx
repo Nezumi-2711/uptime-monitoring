@@ -12,6 +12,7 @@ export function DashboardOverview({ onAddMonitor }: DashboardOverviewProps) {
 	const monitors = monitorsQuery.data?.monitors ?? [];
 	const up = monitors.filter((monitor) => monitor.lastOk === true).length;
 	const down = monitors.filter((monitor) => monitor.lastOk === false).length;
+	const degrading = monitors.filter((monitor) => monitor.lastOk !== false && monitor.consecutiveFailures > 0).length;
 
 	return (
 		<>
@@ -42,7 +43,7 @@ export function DashboardOverview({ onAddMonitor }: DashboardOverviewProps) {
 				<Card className="metric-card">
 					<p>Currently down</p>
 					<strong>{down}</strong>
-					<span>Needs attention</span>
+					<span>{degrading > 0 ? `${degrading} degrading` : 'Needs attention'}</span>
 				</Card>
 			</section>
 		</>

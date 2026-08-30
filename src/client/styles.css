@@ -412,7 +412,7 @@ button {
 	grid-column: span 3;
 }
 .form-actions.compact-actions {
-	grid-column: span 2;
+	grid-column: 3 / -1;
 }
 .form-error {
 	grid-column: 1 / -1;
@@ -629,6 +629,12 @@ button {
 }
 .row-status.offline {
 	color: #ae3d3d;
+}
+.row-status.pending {
+	color: #8a5a1f;
+}
+.row-status.pending i {
+	background: #e0913f;
 }
 .row-status.checking {
 	color: #8b7722;
@@ -932,6 +938,10 @@ button {
 .status-orb.online {
 	border-color: #c5f1df;
 	background: var(--primary-deep);
+}
+.status-orb.pending {
+	border-color: #f6e2c8;
+	background: #d8892f;
 }
 .status-orb.checking {
 	border-color: #eee5bd;
