@@ -3,12 +3,28 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { IncidentTimeline } from '../components/IncidentTimeline';
 import { navigate } from '../lib/router';
+import { useSeo } from '../lib/seo';
 import { usePublicIncidentQuery } from '../queries/status';
 
 const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeStyle: 'short' });
 
 export function IncidentDetailPage({ id }: { id: number }) {
 	const query = usePublicIncidentQuery(id);
+	const incident = query.data?.incident;
+	const latestUpdate = incident?.updates?.at(-1)?.body;
+	const fallbackDescription = incident
+		? `${incident.services.map((service) => service.name).join(', ') || 'General service incident'} · Started ${dateTime.format(new Date(incident.startedAt))}`
+		: 'Public incident report and service restoration updates.';
+	useSeo({
+		title: incident
+			? `${incident.title} — ${incident.status} — upwatch status`
+			: query.isError
+				? 'Incident not found — upwatch'
+				: 'Incident report — upwatch',
+		description: latestUpdate ?? fallbackDescription,
+		noindex: query.isError,
+		canonicalPath: `/incidents/${id}`,
+	});
 	return (
 		<div className="status-page-shell">
 			<header className="dashboard-header status-header">

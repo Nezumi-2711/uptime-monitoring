@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { navigate } from '../lib/router';
+import { useSeo } from '../lib/seo';
 import { useLoginMutation, useSessionQuery } from '../queries/auth';
 
 export function LoginPage() {
 	const [password, setPassword] = useState('');
 	const sessionQuery = useSessionQuery();
 	const loginMutation = useLoginMutation();
+	useSeo({ title: 'Sign in — upwatch', noindex: true });
 
 	useEffect(() => {
 		if (sessionQuery.data?.authenticated) navigate('/dashboard', { replace: true });

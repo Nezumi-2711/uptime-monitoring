@@ -7,6 +7,7 @@ import channelRoutes from './routes/channels';
 import incidentRoutes from './routes/incidents';
 import maintenanceRoutes from './routes/maintenance';
 import monitorRoutes from './routes/monitors';
+import { createPageRoutes } from './routes/pages';
 import settingsRoutes from './routes/settings';
 import statusRoutes from './routes/status';
 import { cleanupExpiredAuthRecords, cleanupStaleData } from './scheduled/cleanup';
@@ -15,6 +16,11 @@ import { runDailyRollup } from './scheduled/rollup';
 const app = new Hono<{ Bindings: Env }>();
 
 app.use('/api/*', csrf());
+
+app.route(
+	'/',
+	createPageRoutes((request, env, executionCtx) => app.fetch(request, env, executionCtx)),
+);
 
 app.get('/api/health', async (context) => {
 	const db = await context.env.DB.prepare('SELECT 1 AS ok').first<{

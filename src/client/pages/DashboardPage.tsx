@@ -6,10 +6,12 @@ import { DashboardOverview } from '../components/dashboard/DashboardOverview';
 import { IncidentsPanel } from '../components/dashboard/IncidentsPanel';
 import { MonitorFormDialog } from '../components/dashboard/MonitorFormDialog';
 import { MonitorListPanel } from '../components/dashboard/MonitorListPanel';
+import { useSeo } from '../lib/seo';
 
 export function DashboardPage() {
 	const [editing, setEditing] = useState<Monitor | null>(null);
 	const [formOpen, setFormOpen] = useState(false);
+	useSeo({ title: 'Dashboard — upwatch', noindex: true });
 
 	function openCreateForm() {
 		setEditing(null);

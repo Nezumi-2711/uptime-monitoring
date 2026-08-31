@@ -11,6 +11,7 @@ import { AiActivityPanel } from '../components/settings/AiActivityPanel';
 import { MaintenanceWindowsPanel } from '../components/settings/MaintenanceWindowsPanel';
 import { NotificationChannelsPanel } from '../components/settings/NotificationChannelsPanel';
 import { navigate } from '../lib/router';
+import { useSeo } from '../lib/seo';
 import { useAiSettingsQuery, useTestAiSettingsMutation, useUpdateAiSettingsMutation } from '../queries/settings';
 
 function AiSettingsForm({ settings }: { settings: AiSettings }) {
@@ -149,6 +150,7 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
 
 export function SettingsPage() {
 	const aiSettingsQuery = useAiSettingsQuery();
+	useSeo({ title: 'Settings — upwatch', noindex: true });
 	return (
 		<div className="dashboard-shell">
 			<AppHeader context="Settings" />

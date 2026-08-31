@@ -13,6 +13,7 @@ import { INTERVAL_OPTIONS, MonitorFormDialog } from '../components/dashboard/Mon
 import { formatDate, formatDuration } from '../lib/format';
 import { monitorState } from '../lib/monitor-status';
 import { navigate } from '../lib/router';
+import { useSeo } from '../lib/seo';
 import {
 	useDeleteMonitorMutation,
 	useMonitorChecksQuery,
@@ -40,6 +41,7 @@ export function MonitorDetailPage({ id }: { id: number }) {
 	const checks = checksQuery.data?.checks ?? [];
 	const incidents = incidentsQuery.data?.incidents ?? [];
 	const openIncident = incidents.find((incident) => incident.resolvedAt === null);
+	useSeo({ title: monitor ? `${monitor.name} — upwatch` : 'Monitor — upwatch', noindex: true });
 
 	if (monitorQuery.isPending)
 		return (

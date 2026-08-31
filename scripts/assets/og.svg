@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="background" x1="70" y1="10" x2="1120" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f7fffb"/>
+      <stop offset="1" stop-color="#eefaf5"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="76" y1="72" x2="240" y2="250" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3ecf8e"/>
+      <stop offset="1" stop-color="#24b47e"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0f5132" flood-opacity=".14"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#background)"/>
+  <circle cx="1085" cy="-5" r="280" fill="#3ecf8e" opacity=".08"/>
+  <circle cx="80" cy="650" r="230" fill="#24b47e" opacity=".07"/>
+  <g transform="translate(80 74)" filter="url(#shadow)">
+    <rect width="150" height="150" rx="36" fill="url(#brand)"/>
+    <path d="m84 21-47 65h36l-7 45 47-68H77l7-42Z" fill="#fff" stroke="#fff" stroke-linejoin="round" stroke-width="6"/>
+  </g>
+  <text x="260" y="176" fill="#102a20" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="84" font-weight="750" letter-spacing="-4">upwatch</text>
+  <text x="80" y="330" fill="#173c2e" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="48" font-weight="650" letter-spacing="-1.4">Fast, dependable uptime monitoring</text>
+  <text x="80" y="390" fill="#557066" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="34">from Cloudflare’s edge.</text>
+  <g transform="translate(80 474)" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="24" font-weight="600">
+    <g><rect width="252" height="68" rx="34" fill="#fff" stroke="#dceae4"/><circle cx="34" cy="34" r="9" fill="#24b47e"/><text x="55" y="42" fill="#254a3b">API operational</text></g>
+    <g transform="translate(272)"><rect width="268" height="68" rx="34" fill="#fff" stroke="#dceae4"/><circle cx="34" cy="34" r="9" fill="#24b47e"/><text x="55" y="42" fill="#254a3b">Website operational</text></g>
+    <g transform="translate(560)"><rect width="246" height="68" rx="34" fill="#fff" stroke="#dceae4"/><circle cx="34" cy="34" r="9" fill="#24b47e"/><text x="55" y="42" fill="#254a3b">Edge operational</text></g>
+  </g>
+</svg>

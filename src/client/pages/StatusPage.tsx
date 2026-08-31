@@ -8,6 +8,7 @@ import { SiteIcon } from '../components/SiteIcon';
 import { StatusHistoryBar } from '../components/StatusHistoryBar';
 import { formatDate, formatDuration } from '../lib/format';
 import { navigate } from '../lib/router';
+import { useSeo } from '../lib/seo';
 import { useSessionQuery } from '../queries/auth';
 import { useIncidentHistoryQuery, useStatusQuery } from '../queries/status';
 
@@ -71,6 +72,16 @@ export function StatusPage() {
 	const activeIncidents = status?.activeIncidents ?? [];
 	const maintenanceServices = status?.services.filter((service) => service.maintenance) ?? [];
 	const pastIncidents = historyQuery.data?.incidents ?? [];
+	const operationalServices = status?.services.filter((service) => service.status === 'up').length ?? 0;
+	const affectedServices = (status?.services.length ?? 0) - operationalServices;
+	const description = status
+		? `${status.services.length} ${status.services.length === 1 ? 'service' : 'services'} · ${operationalServices} operational, ${affectedServices} affected · ${activeIncidents.length} active ${activeIncidents.length === 1 ? 'incident' : 'incidents'}`
+		: 'Live operational health and 90-day availability for every public service.';
+	useSeo({
+		title: status ? `${OVERALL_COPY[status.overall].title} — upwatch status` : 'Service status — upwatch',
+		description,
+		canonicalPath: '/',
+	});
 
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(Date.now()), 5_000);
