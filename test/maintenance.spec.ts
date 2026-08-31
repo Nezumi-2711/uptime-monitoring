@@ -21,6 +21,7 @@ function windowRow(overrides: Partial<MaintenanceWindowRow> = {}): MaintenanceWi
 
 async function resetDatabase() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM ai_events'),
 		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
 		env.DB.prepare('DELETE FROM maintenance_windows'),
 		env.DB.prepare('DELETE FROM checks'),

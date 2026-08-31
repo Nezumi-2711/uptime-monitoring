@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import { findLatestAutoIncidentForMonitor } from '../autopilot/signal';
 import { getDb } from '../db/client';
-import { incidents, incidentMonitors, notificationChannelMonitors, notificationChannels, notificationDeliveries } from '../db/schema';
+import { incidentMonitors, notificationChannelMonitors, notificationChannels, notificationDeliveries } from '../db/schema';
 import {
 	CHANNEL_TYPES,
 	formatChannel,
@@ -69,19 +70,10 @@ export async function dispatchNotification(env: Env, event: NotificationEvent, b
 	const db = getDb(env);
 	let effectiveEvent = event;
 	if (event.incidentId === null && event.monitor && (event.kind === 'down' || event.kind === 'recovered')) {
-		const [incident] = await db
-			.select({ id: incidents.id })
-			.from(incidents)
-			.innerJoin(incidentMonitors, eq(incidentMonitors.incidentId, incidents.id))
-			.where(
-				and(
-					eq(incidentMonitors.monitorId, event.monitor.id),
-					eq(incidents.source, 'auto'),
-					event.kind === 'down' ? isNull(incidents.resolvedAt) : isNotNull(incidents.resolvedAt),
-				),
-			)
-			.orderBy(desc(incidents.updatedAt))
-			.limit(1);
+		const incident = await findLatestAutoIncidentForMonitor(db, event.monitor.id, {
+			resolved: event.kind === 'recovered',
+			kind: 'down',
+		});
 		if (incident) effectiveEvent = { ...event, incidentId: incident.id };
 	}
 	let targetMonitorIds = event.monitor ? [event.monitor.id] : [];

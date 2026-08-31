@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { csrf } from 'hono/csrf';
+import { runAutopilot } from './autopilot';
 import { runDueChecks } from './checks/run-due-checks';
 import authRoutes from './routes/auth';
 import channelRoutes from './routes/channels';
@@ -53,12 +54,18 @@ export default {
 
 		await cleanupExpiredAuthRecords(env);
 		const result = await runDueChecks(env, ctx);
+		ctx.waitUntil(
+			runAutopilot(env, { events: result.events }).then((autopilot) => {
+				console.log(JSON.stringify({ message: 'autopilot run completed', ...autopilot }));
+			}),
+		);
 		console.log(
 			JSON.stringify({
 				message: 'scheduled run completed',
 				cron: controller.cron,
 				scheduledTime: controller.scheduledTime,
 				...result,
+				events: result.events.length,
 			}),
 		);
 	},

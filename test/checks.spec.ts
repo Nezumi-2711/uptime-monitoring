@@ -1,10 +1,12 @@
 import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runAutopilot } from '../src/worker/autopilot';
 import { MAX_RETRY_ATTEMPTS_PER_RUN, runDueChecks } from '../src/worker/checks/run-due-checks';
 
 async function clearMonitoringTables() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM ai_events'),
 		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
 		env.DB.prepare('DELETE FROM maintenance_windows'),
 		env.DB.prepare('DELETE FROM checks'),
@@ -100,7 +102,7 @@ describe('scheduled monitor checks', () => {
 		);
 
 		const summary = await runDueChecks(env);
-		expect(summary).toEqual({ checked: 1, up: 1, down: 0, pending: 0, opened: 0, retries: 0 });
+		expect(summary).toEqual({ checked: 1, up: 1, down: 0, pending: 0, opened: 0, retries: 0, events: [] });
 
 		const monitor = await env.DB.prepare('SELECT last_ok, last_status_code, last_latency_ms, last_checked_at FROM monitors WHERE id = ?')
 			.bind(id)
@@ -213,7 +215,7 @@ describe('scheduled monitor checks', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		const summary = await runDueChecks(env);
-		expect(summary).toEqual({ checked: 1, up: 0, down: 1, pending: 1, opened: 0, retries: 0 });
+		expect(summary).toEqual({ checked: 1, up: 0, down: 1, pending: 1, opened: 0, retries: 0, events: [] });
 
 		const monitor = await env.DB.prepare('SELECT last_ok, consecutive_failures, last_status_code, last_error FROM monitors WHERE id = ?')
 			.bind(id)
@@ -338,7 +340,7 @@ describe('scheduled monitor checks', () => {
 				 VALUES ('Legacy webhook', 'webhook', '{"url":"https://hooks.example.test/events"}', 1, 1, ?, ?)`,
 			).bind(now, now),
 			env.DB.prepare(
-				"INSERT INTO ai_settings (id, enabled, base_url, api_key, model, created_at, updated_at) VALUES (1, 1, 'https://ai.example.test/v1', 'secret', 'test-model', ?, ?)",
+				"INSERT INTO ai_settings (id, enabled, base_url, api_key, model, autopilot_enabled, created_at, updated_at) VALUES (1, 1, 'https://ai.example.test/v1', 'secret', 'test-model', 1, ?, ?)",
 			).bind(now, now),
 		]);
 		const webhookBodies: Array<Record<string, unknown>> = [];
@@ -357,7 +359,8 @@ describe('scheduled monitor checks', () => {
 						choices: [
 							{
 								message: {
-									content: 'Some visitors may be unable to use the service. The team has been alerted and restoration work is underway.',
+									content:
+										'TITLE: Service disruption\nBODY: Some visitors may be unable to use the service. Automated monitoring continues while service is restored.',
 								},
 							},
 						],
@@ -373,7 +376,8 @@ describe('scheduled monitor checks', () => {
 		expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM incident_updates').first<{ count: number }>())?.count).toBe(0);
 
 		await env.DB.prepare('UPDATE monitors SET last_checked_at = NULL WHERE id = ?').bind(id).run();
-		await runDueChecks(env);
+		const confirmed = await runDueChecks(env);
+		await runAutopilot(env, { events: confirmed.events });
 		expect(webhookBodies).toHaveLength(1);
 		expect(webhookBodies[0]).toMatchObject({ event: 'down' });
 		expect(aiCalls).toBe(1);
@@ -453,7 +457,7 @@ describe('scheduled monitor checks', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		const summary = await runDueChecks(env);
-		expect(summary).toEqual({ checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0 });
+		expect(summary).toEqual({ checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0, events: [] });
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });

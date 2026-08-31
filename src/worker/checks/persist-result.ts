@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { checks, incidentMonitors, incidents, incidentUpdates, monitors } from '../db/schema';
-import { RECOVERY_UPDATE_BODY } from '../ai/fallback-message';
+import { DEGRADED_RECOVERY_UPDATE_BODY, DEGRADED_SUPERSEDED_UPDATE_BODY, RECOVERY_UPDATE_BODY } from '../ai/fallback-message';
 import type { CheckResult, Monitor } from './run-check';
 
 /** Only opened and resolved transitions are allowed to send alerts. */
@@ -11,7 +11,14 @@ export type LatencyTransition = 'degraded' | 'recovered' | null;
 
 type BatchStatement = Parameters<Database['batch']>[0][number];
 
-export function buildResultStatements(db: Database, monitor: Monitor, result: CheckResult, checkedAt: Date, maintenance = false) {
+export function buildResultStatements(
+	db: Database,
+	monitor: Monitor,
+	result: CheckResult,
+	checkedAt: Date,
+	maintenance = false,
+	options: { degradedIncidents?: boolean } = {},
+) {
 	const statements: BatchStatement[] = [
 		db.insert(checks).values({
 			monitorId: monitor.id,
@@ -78,11 +85,14 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 
 	let transition: CheckTransition = null;
 	if (!wasDown && isDown) {
+		const localImpact =
+			result.statusCode === null || (result.statusCode !== null && result.statusCode >= 500) || nextFailures >= 10 ? 'major' : 'minor';
 		statements.push(
 			db.insert(incidents).values({
 				status: 'investigating',
-				impact: 'major',
+				impact: localImpact,
 				source: 'auto',
+				kind: 'down',
 				startedAt: checkedAt,
 				startStatusCode: result.statusCode,
 				startError: result.error,
@@ -91,13 +101,60 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 			}),
 			db.insert(incidentMonitors).values({ incidentId: sql`last_insert_rowid()`, monitorId: monitor.id }),
 		);
+		// Keep this after incident_monitors: that statement must consume the new down incident rowid first.
+		if (options.degradedIncidents) {
+			const degradedIds = db
+				.select({ id: incidentMonitors.incidentId })
+				.from(incidentMonitors)
+				.innerJoin(incidents, eq(incidents.id, incidentMonitors.incidentId))
+				.where(
+					and(
+						eq(incidentMonitors.monitorId, monitor.id),
+						eq(incidents.source, 'auto'),
+						eq(incidents.kind, 'degraded'),
+						isNull(incidents.resolvedAt),
+					),
+				);
+			statements.push(
+				db.insert(incidentUpdates).select(
+					db
+						.select({
+							id: sql<number | null>`null`.as('id'),
+							incidentId: incidents.id,
+							status: sql<string>`'resolved'`.as('status'),
+							body: sql<string>`${DEGRADED_SUPERSEDED_UPDATE_BODY}`.as('body'),
+							note: sql<string | null>`null`.as('note'),
+							source: sql<string>`'system'`.as('source'),
+							createdAt: sql<Date>`${checkedAt.getTime()}`.as('created_at'),
+						})
+						.from(incidents)
+						.where(inArray(incidents.id, degradedIds)),
+				),
+				db
+					.update(incidents)
+					.set({
+						status: 'resolved',
+						resolvedAt: checkedAt,
+						durationMs: sql`${checkedAt.getTime()} - ${incidents.startedAt}`,
+						updatedAt: checkedAt,
+					})
+					.where(inArray(incidents.id, degradedIds)),
+			);
+		}
 		transition = 'opened';
 	} else if (wasDown && result.ok) {
 		const openIncidentIds = db
 			.select({ id: incidentMonitors.incidentId })
 			.from(incidentMonitors)
 			.innerJoin(incidents, eq(incidents.id, incidentMonitors.incidentId))
-			.where(and(eq(incidentMonitors.monitorId, monitor.id), eq(incidents.source, 'auto'), isNull(incidents.resolvedAt)));
+			.where(
+				and(
+					eq(incidentMonitors.monitorId, monitor.id),
+					eq(incidents.source, 'auto'),
+					eq(incidents.kind, 'down'),
+					isNull(incidents.resolvedAt),
+				),
+			);
 		statements.push(
 			db.insert(incidentUpdates).select(
 				db
@@ -111,7 +168,14 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 						createdAt: sql<Date>`${checkedAt.getTime()}`.as('created_at'),
 					})
 					.from(incidents)
-					.where(and(eq(incidents.source, 'auto'), isNull(incidents.resolvedAt), inArray(incidents.id, openIncidentIds))),
+					.where(
+						and(
+							eq(incidents.source, 'auto'),
+							eq(incidents.kind, 'down'),
+							isNull(incidents.resolvedAt),
+							inArray(incidents.id, openIncidentIds),
+						),
+					),
 			),
 			db
 				.update(incidents)
@@ -121,11 +185,73 @@ export function buildResultStatements(db: Database, monitor: Monitor, result: Ch
 					durationMs: sql`${checkedAt.getTime()} - ${incidents.startedAt}`,
 					updatedAt: checkedAt,
 				})
-				.where(and(eq(incidents.source, 'auto'), isNull(incidents.resolvedAt), inArray(incidents.id, openIncidentIds))),
+				.where(
+					and(
+						eq(incidents.source, 'auto'),
+						eq(incidents.kind, 'down'),
+						isNull(incidents.resolvedAt),
+						inArray(incidents.id, openIncidentIds),
+					),
+				),
 		);
 		transition = 'resolved';
 	} else if (!wasDown && !result.ok) transition = 'pending';
 	else if (!wasDown && result.ok && previousFailures > 0) transition = 'cleared';
+
+	if (options.degradedIncidents && monitor.alertsEnabled && latencyTransition === 'degraded' && !isDown) {
+		statements.push(
+			db.insert(incidents).values({
+				status: 'investigating',
+				impact: 'minor',
+				source: 'auto',
+				kind: 'degraded',
+				startedAt: checkedAt,
+				startStatusCode: result.statusCode,
+				startError: result.error,
+				createdAt: checkedAt,
+				updatedAt: checkedAt,
+			}),
+			db.insert(incidentMonitors).values({ incidentId: sql`last_insert_rowid()`, monitorId: monitor.id }),
+		);
+	} else if (options.degradedIncidents && latencyTransition === 'recovered') {
+		const degradedIds = db
+			.select({ id: incidentMonitors.incidentId })
+			.from(incidentMonitors)
+			.innerJoin(incidents, eq(incidents.id, incidentMonitors.incidentId))
+			.where(
+				and(
+					eq(incidentMonitors.monitorId, monitor.id),
+					eq(incidents.source, 'auto'),
+					eq(incidents.kind, 'degraded'),
+					isNull(incidents.resolvedAt),
+				),
+			);
+		statements.push(
+			db.insert(incidentUpdates).select(
+				db
+					.select({
+						id: sql<number | null>`null`.as('id'),
+						incidentId: incidents.id,
+						status: sql<string>`'resolved'`.as('status'),
+						body: sql<string>`${DEGRADED_RECOVERY_UPDATE_BODY}`.as('body'),
+						note: sql<string | null>`null`.as('note'),
+						source: sql<string>`'system'`.as('source'),
+						createdAt: sql<Date>`${checkedAt.getTime()}`.as('created_at'),
+					})
+					.from(incidents)
+					.where(inArray(incidents.id, degradedIds)),
+			),
+			db
+				.update(incidents)
+				.set({
+					status: 'resolved',
+					resolvedAt: checkedAt,
+					durationMs: sql`${checkedAt.getTime()} - ${incidents.startedAt}`,
+					updatedAt: checkedAt,
+				})
+				.where(inArray(incidents.id, degradedIds)),
+		);
+	}
 
 	return { statements, transition, latencyTransition, consecutiveFailures: nextFailures };
 }

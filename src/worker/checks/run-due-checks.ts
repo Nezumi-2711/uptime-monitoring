@@ -1,15 +1,16 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { generateIncidentMessage } from '../ai/incident-message';
+import type { AutopilotEvent } from '../autopilot';
 import { getDb } from '../db/client';
-import { monitors } from '../db/schema';
+import { aiSettings, monitors } from '../db/schema';
 import { loadActiveMaintenance } from '../maintenance/windows';
+import { buildAlertEvent } from '../notifications/compose';
 import { dispatchNotification, MAX_NOTIFICATIONS_PER_RUN, type NotificationBudget } from '../notifications/dispatch';
-import { type AlertTransition, buildResultStatements } from './persist-result';
+import { buildResultStatements } from './persist-result';
 import { runCheck, runCheckWithRetries, type RetryBudget } from './run-check';
 
 const MAX_MONITORS_PER_RUN = 40;
-const MAX_AI_MESSAGES_PER_RUN = 10;
 const CONCURRENCY = 10;
+const MAX_BATCH_STATEMENTS = 100;
 export const MAX_RETRY_ATTEMPTS_PER_RUN = 60;
 const RETRY_DEADLINE_MS = 90_000;
 
@@ -20,6 +21,7 @@ export type DueCheckSummary = {
 	pending: number;
 	opened: number;
 	retries: number;
+	events: AutopilotEvent[];
 };
 
 export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitUntil'>): Promise<DueCheckSummary> {
@@ -37,8 +39,11 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		.orderBy(sql`${monitors.lastCheckedAt} ASC NULLS FIRST`)
 		.limit(MAX_MONITORS_PER_RUN);
 
-	if (due.length === 0) return { checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0 };
-	const activeMaintenance = await loadActiveMaintenance(db, new Date());
+	if (due.length === 0) return { checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0, events: [] };
+	const [activeMaintenance, [settings]] = await Promise.all([
+		loadActiveMaintenance(db, new Date()),
+		db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1),
+	]);
 	const budget: RetryBudget = { remaining: MAX_RETRY_ATTEMPTS_PER_RUN, deadline: Date.now() + RETRY_DEADLINE_MS };
 
 	const completed: Array<{
@@ -65,57 +70,30 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		monitor,
 		result,
 		checkedAt,
-		...buildResultStatements(db, monitor, result, checkedAt, maintenance),
+		...buildResultStatements(db, monitor, result, checkedAt, maintenance, {
+			degradedIncidents: Boolean(settings?.autopilotEnabled && settings.autopilotDegradedIncidents),
+		}),
 	}));
-	const statements = persisted.flatMap((item) => item.statements);
+	let statementChunk: (typeof persisted)[number]['statements'] = [];
+	for (const item of persisted) {
+		if (statementChunk.length > 0 && statementChunk.length + item.statements.length > MAX_BATCH_STATEMENTS) {
+			await db.batch(statementChunk as [(typeof statementChunk)[number], ...typeof statementChunk]);
+			statementChunk = [];
+		}
+		statementChunk.push(...item.statements);
+	}
+	if (statementChunk.length > 0) await db.batch(statementChunk as [(typeof statementChunk)[number], ...typeof statementChunk]);
 
-	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
-
-	let aiMessagesQueued = 0;
 	const notificationBudget: NotificationBudget = { remaining: MAX_NOTIFICATIONS_PER_RUN };
 	const notifications = persisted.flatMap((item) => {
 		const work: Promise<unknown>[] = [];
 		if (item.transition === 'opened' || item.transition === 'resolved') {
-			const kind: AlertTransition = item.transition;
-			work.push(
-				dispatchNotification(
-					env,
-					{
-						monitor: { id: item.monitor.id, name: item.monitor.name, url: item.monitor.url },
-						kind: kind === 'opened' ? 'down' : 'recovered',
-						incidentId: null,
-						title: kind === 'opened' ? `${item.monitor.name} is down` : `${item.monitor.name} recovered`,
-						body: item.result.error,
-						statusCode: item.result.statusCode,
-						error: item.result.error,
-						at: item.checkedAt,
-					},
-					notificationBudget,
-				),
-			);
+			work.push(dispatchNotification(env, buildAlertEvent(item.monitor, item.result, item.transition, item.checkedAt), notificationBudget));
 		}
 		if (item.latencyTransition) {
-			const degraded = item.latencyTransition === 'degraded';
 			work.push(
-				dispatchNotification(
-					env,
-					{
-						monitor: { id: item.monitor.id, name: item.monitor.name, url: item.monitor.url },
-						kind: degraded ? 'degraded' : 'recovered_degraded',
-						incidentId: null,
-						title: degraded ? `${item.monitor.name} performance degraded` : `${item.monitor.name} performance recovered`,
-						body: degraded ? `Response time was ${item.result.latencyMs} ms.` : 'Response time returned to normal.',
-						statusCode: item.result.statusCode,
-						error: item.result.error,
-						at: item.checkedAt,
-					},
-					notificationBudget,
-				),
+				dispatchNotification(env, buildAlertEvent(item.monitor, item.result, item.latencyTransition, item.checkedAt), notificationBudget),
 			);
-		}
-		if (item.transition === 'opened' && item.monitor.alertsEnabled && aiMessagesQueued < MAX_AI_MESSAGES_PER_RUN) {
-			aiMessagesQueued += 1;
-			work.push(generateIncidentMessage(env, { monitor: item.monitor, result: item.result }));
 		}
 		return work;
 	});
@@ -126,6 +104,15 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 	}
 
 	const up = completed.reduce((count, item) => count + Number(item.result.ok), 0);
+	const events: AutopilotEvent[] = persisted
+		.filter((item) => item.transition === 'opened' || item.transition === 'resolved' || item.latencyTransition !== null)
+		.map((item) => ({
+			monitor: item.monitor,
+			result: item.result,
+			transition: item.transition === 'opened' || item.transition === 'resolved' ? item.transition : null,
+			latencyTransition: item.latencyTransition,
+			checkedAt: item.checkedAt,
+		}));
 	return {
 		checked: completed.length,
 		up,
@@ -133,5 +120,6 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		pending: persisted.reduce((count, item) => count + Number(item.transition === 'pending'), 0),
 		opened: persisted.reduce((count, item) => count + Number(item.transition === 'opened'), 0),
 		retries: completed.reduce((count, item) => count + item.result.attempts - 1, 0),
+		events,
 	};
 }

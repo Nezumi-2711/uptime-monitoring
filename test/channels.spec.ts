@@ -34,6 +34,7 @@ describe('notification channels', () => {
 	});
 	beforeEach(async () => {
 		await env.DB.batch([
+			env.DB.prepare('DELETE FROM ai_events'),
 			env.DB.prepare('DELETE FROM notification_deliveries'),
 			env.DB.prepare('DELETE FROM notification_channel_monitors'),
 			env.DB.prepare('DELETE FROM notification_channels'),

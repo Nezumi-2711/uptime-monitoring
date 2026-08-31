@@ -23,6 +23,7 @@ type PublicIncident = {
 	status: string;
 	impact: string;
 	source: string;
+	kind: string;
 	startedAt: Date;
 	resolvedAt: Date | null;
 	durationMs: number | null;
@@ -103,6 +104,7 @@ const incidentSelection = {
 	status: incidents.status,
 	impact: incidents.impact,
 	source: incidents.source,
+	kind: incidents.kind,
 	startedAt: incidents.startedAt,
 	resolvedAt: incidents.resolvedAt,
 	durationMs: incidents.durationMs,
@@ -177,10 +179,11 @@ statusRoutes.get('/', async (context) => {
 		if (buckets) buckets.push(row);
 		else bucketsByMonitor.set(row.monitorId, [row]);
 	}
-	const activeIncidentByMonitor = new Map<number, PublicIncident>();
+	const downIncidentByMonitor = new Map<number, PublicIncident>();
+	const degradedIncidentByMonitor = new Map<number, PublicIncident>();
 	for (const incident of activeIncidentRows) {
-		for (const service of incidentServices.get(incident.id) ?? [])
-			if (!activeIncidentByMonitor.has(service.id)) activeIncidentByMonitor.set(service.id, incident);
+		const target = incident.kind === 'degraded' ? degradedIncidentByMonitor : downIncidentByMonitor;
+		for (const service of incidentServices.get(incident.id) ?? []) if (!target.has(service.id)) target.set(service.id, incident);
 	}
 	const services = monitorRows.map((monitor) => {
 		const buckets = bucketsByMonitor.get(monitor.id) ?? [];
@@ -194,7 +197,8 @@ statusRoutes.get('/', async (context) => {
 				uptimePct: roundUptime(bucket.upChecks, bucket.totalChecks),
 			};
 		});
-		const incident = activeIncidentByMonitor.get(monitor.id);
+		const downIncident = downIncidentByMonitor.get(monitor.id);
+		const degradedIncident = degradedIncidentByMonitor.get(monitor.id);
 		const maintenance = activeMaintenance.get(monitor.id);
 		return {
 			id: monitor.id,
@@ -202,11 +206,13 @@ statusRoutes.get('/', async (context) => {
 			status: maintenance ? ('maintenance' as const) : serviceStatus(monitor.lastOk, monitor.lastDegraded),
 			message:
 				!maintenance && monitor.lastOk === false
-					? incident
-						? (latestUpdates.get(incident.id)?.body ?? deterministicIncidentMessage(incident.startStatusCode))
+					? downIncident
+						? (latestUpdates.get(downIncident.id)?.body ?? deterministicIncidentMessage(downIncident.startStatusCode))
 						: deterministicIncidentMessage(monitor.lastStatusCode)
 					: !maintenance && monitor.lastOk === true && monitor.lastDegraded
-						? DEGRADED_MESSAGE
+						? degradedIncident
+							? (latestUpdates.get(degradedIncident.id)?.body ?? DEGRADED_MESSAGE)
+							: DEGRADED_MESSAGE
 						: null,
 			maintenance: maintenance ? { name: maintenance.name, endsAt: maintenance.endsAt.toISOString() } : null,
 			lastCheckedAt: monitor.lastCheckedAt?.toISOString() ?? null,

@@ -13,6 +13,11 @@ export const aiSettings = sqliteTable('ai_settings', {
 	baseUrl: text('base_url'),
 	apiKey: text('api_key'),
 	model: text('model'),
+	autopilotEnabled: integer('autopilot_enabled', { mode: 'boolean' }).notNull().default(false),
+	autopilotFollowupMinutes: integer('autopilot_followup_minutes').notNull().default(15),
+	autopilotMaxUpdates: integer('autopilot_max_updates').notNull().default(6),
+	autopilotAdvanceStatus: integer('autopilot_advance_status', { mode: 'boolean' }).notNull().default(false),
+	autopilotDegradedIncidents: integer('autopilot_degraded_incidents', { mode: 'boolean' }).notNull().default(false),
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 });
@@ -134,6 +139,7 @@ export const incidents = sqliteTable(
 		status: text('status').notNull().default('investigating'),
 		impact: text('impact').notNull().default('major'),
 		source: text('source').notNull().default('auto'),
+		kind: text('kind').notNull().default('down'),
 		startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
 		resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' }),
 		startStatusCode: integer('start_status_code'),
@@ -172,6 +178,26 @@ export const incidentUpdates = sqliteTable(
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 	},
 	(table) => [index('incident_updates_incident_id_created_at_idx').on(table.incidentId, table.createdAt)],
+);
+
+export const aiEvents = sqliteTable(
+	'ai_events',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		kind: text('kind').notNull(),
+		incidentId: integer('incident_id').references(() => incidents.id, { onDelete: 'set null' }),
+		monitorId: integer('monitor_id').references(() => monitors.id, { onDelete: 'set null' }),
+		model: text('model'),
+		outcome: text('outcome').notNull(),
+		reason: text('reason'),
+		latencyMs: integer('latency_ms'),
+		promptTokens: integer('prompt_tokens'),
+		completionTokens: integer('completion_tokens'),
+		contextPreview: text('context_preview'),
+		outputPreview: text('output_preview'),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) => [index('ai_events_created_at_idx').on(table.createdAt)],
 );
 
 export const notificationChannels = sqliteTable(

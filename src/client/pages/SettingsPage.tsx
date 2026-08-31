@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { ArrowLeft, BellRing, Sparkles, Wrench } from 'lucide-react';
+import { Activity, ArrowLeft, BellRing, Sparkles, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Empty, EmptyTitle } from '@/components/ui/empty';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { AiSettings } from '../api/settings';
 import { AppHeader } from '../components/AppHeader';
+import { AiActivityPanel } from '../components/settings/AiActivityPanel';
 import { MaintenanceWindowsPanel } from '../components/settings/MaintenanceWindowsPanel';
 import { NotificationChannelsPanel } from '../components/settings/NotificationChannelsPanel';
 import { navigate } from '../lib/router';
@@ -17,6 +18,11 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
 	const [apiKey, setApiKey] = useState('');
 	const [model, setModel] = useState(settings.model ?? 'gpt-4o-mini');
 	const [enabled, setEnabled] = useState(settings.enabled);
+	const [autopilotEnabled, setAutopilotEnabled] = useState(settings.autopilotEnabled);
+	const [followupMinutes, setFollowupMinutes] = useState(settings.autopilotFollowupMinutes);
+	const [maxUpdates, setMaxUpdates] = useState(settings.autopilotMaxUpdates);
+	const [advanceStatus, setAdvanceStatus] = useState(settings.autopilotAdvanceStatus);
+	const [degradedIncidents, setDegradedIncidents] = useState(settings.autopilotDegradedIncidents);
 	const updateMutation = useUpdateAiSettingsMutation();
 	const testMutation = useTestAiSettingsMutation();
 
@@ -27,6 +33,11 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
 			baseUrl: baseUrl.trim() || null,
 			model: model.trim() || null,
 			apiKey: apiKey.trim() || null,
+			autopilotEnabled,
+			autopilotFollowupMinutes: followupMinutes,
+			autopilotMaxUpdates: maxUpdates,
+			autopilotAdvanceStatus: advanceStatus,
+			autopilotDegradedIncidents: degradedIncidents,
 		});
 	}
 
@@ -65,6 +76,54 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
 					<small>Generate one sanitized public update when an incident opens.</small>
 				</label>
 			</div>
+			<fieldset className="autopilot-settings">
+				<legend>Autopilot</legend>
+				<div className="settings-toggle">
+					<Switch id="autopilot-enabled" checked={autopilotEnabled} onCheckedChange={setAutopilotEnabled} />
+					<label htmlFor="autopilot-enabled">
+						<strong>Enable incident autopilot</strong>
+						<small>Write sanitized opening, follow-up, and resolution updates without sending extra alerts.</small>
+					</label>
+				</div>
+				<div className="autopilot-number-fields">
+					<label className="field" htmlFor="autopilot-cadence">
+						<span>Initial follow-up cadence (minutes)</span>
+						<Input
+							id="autopilot-cadence"
+							type="number"
+							min={5}
+							max={240}
+							value={followupMinutes}
+							onChange={(event) => setFollowupMinutes(Number(event.target.value))}
+						/>
+					</label>
+					<label className="field" htmlFor="autopilot-max-updates">
+						<span>Maximum automatic updates</span>
+						<Input
+							id="autopilot-max-updates"
+							type="number"
+							min={1}
+							max={20}
+							value={maxUpdates}
+							onChange={(event) => setMaxUpdates(Number(event.target.value))}
+						/>
+					</label>
+				</div>
+				<div className="settings-toggle">
+					<Switch id="autopilot-advance-status" checked={advanceStatus} onCheckedChange={setAdvanceStatus} />
+					<label htmlFor="autopilot-advance-status">
+						<strong>Advance incident status</strong>
+						<small>Use objective check patterns to move between investigating, identified, and monitoring.</small>
+					</label>
+				</div>
+				<div className="settings-toggle">
+					<Switch id="autopilot-degraded" checked={degradedIncidents} onCheckedChange={setDegradedIncidents} />
+					<label htmlFor="autopilot-degraded">
+						<strong>Open degraded incidents</strong>
+						<small>Publish performance degradation incidents. Keep disabled to avoid public noise.</small>
+					</label>
+				</div>
+			</fieldset>
 			<div className="settings-actions">
 				<Button
 					variant="unstyled"
@@ -102,6 +161,20 @@ export function SettingsPage() {
 					<h1>Notifications, AI &amp; maintenance</h1>
 					<p>Configure incident alerts, visitor-friendly updates, and planned downtime from one place.</p>
 				</section>
+				<Card asChild>
+					<section className="settings-card">
+						<div className="settings-card-intro">
+							<span>
+								<Activity />
+							</span>
+							<div>
+								<h2>AI activity</h2>
+								<p>Audit model calls, sanitizer rejections, latency, and token usage from the last seven days.</p>
+							</div>
+						</div>
+						<AiActivityPanel />
+					</section>
+				</Card>
 				<Card asChild>
 					<section className="settings-card">
 						<div className="settings-card-intro">

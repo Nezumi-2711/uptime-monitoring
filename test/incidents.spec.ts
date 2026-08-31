@@ -6,6 +6,7 @@ import { hashPassword } from '../src/worker/lib/password';
 const PASSWORD = 'correct-horse-battery-staple';
 async function reset() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM ai_events'),
 		env.DB.prepare('DELETE FROM notification_deliveries'),
 		env.DB.prepare('DELETE FROM notification_channel_monitors'),
 		env.DB.prepare('DELETE FROM notification_channels'),
@@ -122,5 +123,24 @@ describe('incident lifecycle API', () => {
 		expect((await request(`/api/monitors/${id}`, 'DELETE', auth)).status).toBe(200);
 		expect(await env.DB.prepare('SELECT id FROM incidents WHERE id = ?').bind(incidentId).first()).toBeTruthy();
 		expect(await env.DB.prepare('SELECT * FROM incident_monitors WHERE incident_id = ?').bind(incidentId).first()).toBeNull();
+	});
+	it('bumps updated_at when only monitor assignments change', async () => {
+		const firstId = await monitor('API');
+		const secondId = await monitor('Web');
+		const auth = await cookie();
+		const created = await request('/api/incidents', 'POST', auth, {
+			title: 'API issue',
+			impact: 'major',
+			status: 'investigating',
+			body: 'Some requests are failing.',
+			monitorIds: [firstId],
+		});
+		const incidentId = (await created.json<{ incident: { id: number } }>()).incident.id;
+		await env.DB.prepare('UPDATE incidents SET updated_at = 1 WHERE id = ?').bind(incidentId).run();
+		expect((await request(`/api/incidents/${incidentId}`, 'PATCH', auth, { monitorIds: [secondId] })).status).toBe(200);
+		const row = await env.DB.prepare('SELECT updated_at AS updatedAt FROM incidents WHERE id = ?')
+			.bind(incidentId)
+			.first<{ updatedAt: number }>();
+		expect(row?.updatedAt).toBeGreaterThan(1);
 	});
 });

@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { aiSettings } from '../db/schema';
-import { requestCompletion } from './client';
+import { requestCompletionDetailed } from './client';
+import { recordAiEvent } from './events';
 import { sanitizePublicText } from './sanitize';
 
 export type IncidentStatus = 'investigating' | 'identified' | 'monitoring' | 'resolved';
@@ -63,20 +64,54 @@ export async function draftIncidentUpdate(env: Env, input: DraftInput): Promise<
 	]
 		.filter(Boolean)
 		.join('\n\n');
-	const completion = await requestCompletion(
+	const result = await requestCompletionDetailed(
 		{ baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model },
 		INCIDENT_DRAFT_SYSTEM_PROMPT,
 		context,
 		320,
 	);
-	if (!completion) throw new IncidentDraftError('AI could not generate a safe update. Edit the note or write the update manually.', 422);
+	const completion = result.content;
+	if (!completion) {
+		await recordAiEvent(env, {
+			kind: 'manual_draft',
+			model: settings.model,
+			outcome: 'failed',
+			reason: result.failure,
+			latencyMs: result.latencyMs,
+			promptTokens: result.promptTokens,
+			completionTokens: result.completionTokens,
+			contextPreview: context,
+		});
+		throw new IncidentDraftError('AI could not generate a safe update. Edit the note or write the update manually.', 422);
+	}
 
 	const titleMatch = completion.match(/(?:^|\n)TITLE:\s*(.+?)(?=\nBODY:|$)/is);
 	const bodyMatch = completion.match(/(?:^|\n)BODY:\s*([\s\S]+)$/i);
 	const title = input.withTitle ? sanitizePublicText(titleMatch?.[1] ?? '', 120)?.replace(/[.!?]+$/, '') : null;
 	const body = sanitizePublicText(bodyMatch?.[1] ?? '', 400);
 	if ((input.withTitle && !title) || !body) {
+		await recordAiEvent(env, {
+			kind: 'manual_draft',
+			model: settings.model,
+			outcome: 'rejected',
+			reason: 'sanitizer_rejected',
+			latencyMs: result.latencyMs,
+			promptTokens: result.promptTokens,
+			completionTokens: result.completionTokens,
+			contextPreview: context,
+			outputPreview: completion,
+		});
 		throw new IncidentDraftError('AI could not generate a safe update. Edit the note or write the update manually.', 422);
 	}
+	await recordAiEvent(env, {
+		kind: 'manual_draft',
+		model: settings.model,
+		outcome: 'ok',
+		latencyMs: result.latencyMs,
+		promptTokens: result.promptTokens,
+		completionTokens: result.completionTokens,
+		contextPreview: context,
+		outputPreview: completion,
+	});
 	return { title: title ?? null, body };
 }

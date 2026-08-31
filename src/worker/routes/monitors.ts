@@ -1,15 +1,16 @@
 import { and, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { generateIncidentMessage } from '../ai/incident-message';
+import { runAutopilot } from '../autopilot';
 import { buildResultStatements } from '../checks/persist-result';
 import { MAX_RETRY_COUNT, runCheckWithRetries } from '../checks/run-check';
 import { getDb } from '../db/client';
-import { checks, incidentMonitors, incidents, maintenanceWindowMonitors, monitors } from '../db/schema';
+import { aiSettings, checks, incidentMonitors, incidents, maintenanceWindowMonitors, monitors } from '../db/schema';
 import { requireAuth, type AuthVariables } from '../lib/require-auth';
 import { loadActiveMaintenance } from '../maintenance/windows';
 import { isSafeRemoteUrl } from '../lib/safe-url';
 import { readBodyLimited } from '../lib/read-body';
 import { dispatchNotification } from '../notifications/dispatch';
+import { buildAlertEvent } from '../notifications/compose';
 
 type MonitorMethod = 'GET' | 'HEAD' | 'POST';
 
@@ -600,42 +601,35 @@ monitorRoutes.post('/:id/check', async (context) => {
 	const result = await runCheckWithRetries(monitor);
 	const checkedAt = new Date();
 	const activeMaintenance = await loadActiveMaintenance(db, checkedAt);
+	const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1);
 	const { statements, transition, latencyTransition } = buildResultStatements(
 		db,
 		monitor,
 		result,
 		checkedAt,
 		activeMaintenance.has(monitor.id),
+		{ degradedIncidents: Boolean(settings?.autopilotEnabled && settings.autopilotDegradedIncidents) },
 	);
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 	if (transition === 'opened' || transition === 'resolved') {
-		await dispatchNotification(context.env, {
-			monitor: { id: monitor.id, name: monitor.name, url: monitor.url },
-			kind: transition === 'opened' ? 'down' : 'recovered',
-			incidentId: null,
-			title: transition === 'opened' ? `${monitor.name} is down` : `${monitor.name} recovered`,
-			body: result.error,
-			statusCode: result.statusCode,
-			error: result.error,
-			at: checkedAt,
-		});
-		if (transition === 'opened') {
-			await generateIncidentMessage(context.env, { monitor, result });
-		}
+		await dispatchNotification(context.env, buildAlertEvent(monitor, result, transition, checkedAt));
 	}
 	if (latencyTransition) {
-		const degraded = latencyTransition === 'degraded';
-		await dispatchNotification(context.env, {
-			monitor: { id: monitor.id, name: monitor.name, url: monitor.url },
-			kind: degraded ? 'degraded' : 'recovered_degraded',
-			incidentId: null,
-			title: degraded ? `${monitor.name} performance degraded` : `${monitor.name} performance recovered`,
-			body: degraded ? `Response time was ${result.latencyMs} ms.` : 'Response time returned to normal.',
-			statusCode: result.statusCode,
-			error: result.error,
-			at: checkedAt,
-		});
+		await dispatchNotification(context.env, buildAlertEvent(monitor, result, latencyTransition, checkedAt));
 	}
+	await runAutopilot(context.env, {
+		events: [
+			{
+				monitor,
+				result,
+				transition: transition === 'opened' || transition === 'resolved' ? transition : null,
+				latencyTransition,
+				checkedAt,
+			},
+		],
+		budget: { remaining: 1 },
+		skipSweep: true,
+	});
 	const [updated] = await db.select().from(monitors).where(eq(monitors.id, monitor.id)).limit(1);
 
 	return context.json({ result, transition, latencyTransition, monitor: updated });

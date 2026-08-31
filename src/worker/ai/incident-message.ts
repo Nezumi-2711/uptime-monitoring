@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm';
 import type { CheckResult, Monitor } from '../checks/run-check';
 import { getDb } from '../db/client';
 import { aiSettings } from '../db/schema';
-import { requestCompletion } from './client';
+import { requestCompletionDetailed } from './client';
+import { recordAiEvent } from './events';
 import { buildIncidentContext } from './incident-context';
 import { sanitizePublicText } from './sanitize';
 
@@ -32,14 +33,28 @@ export async function generateIncidentMessage(env: Env, input: { monitor: Monito
 		const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1);
 		if (!settings?.enabled || !settings.baseUrl || !settings.apiKey || !settings.model) return null;
 
-		const content = await requestCompletion(
+		const context = await buildIncidentContext(db, input.monitor, input.result);
+		const result = await requestCompletionDetailed(
 			{ baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model },
 			INCIDENT_MESSAGE_SYSTEM_PROMPT,
-			await buildIncidentContext(db, input.monitor, input.result),
+			context,
 		);
-		if (!content) return null;
-		const message = sanitizeIncidentMessage(content);
-		if (!message) return null;
+		const message = result.content ? sanitizeIncidentMessage(result.content) : null;
+		if (!message) {
+			await recordAiEvent(env, {
+				kind: 'incident_open',
+				monitorId: input.monitor.id,
+				model: settings.model,
+				outcome: result.failure ? 'failed' : 'rejected',
+				reason: result.failure ?? 'sanitizer_rejected',
+				latencyMs: result.latencyMs,
+				promptTokens: result.promptTokens,
+				completionTokens: result.completionTokens,
+				contextPreview: context,
+				outputPreview: result.content,
+			});
+			return null;
+		}
 
 		await env.DB.prepare(
 			`INSERT INTO incident_updates (incident_id, status, body, source, created_at)
@@ -53,6 +68,17 @@ export async function generateIncidentMessage(env: Env, input: { monitor: Monito
 		)
 			.bind(message, Date.now(), input.monitor.id)
 			.run();
+		await recordAiEvent(env, {
+			kind: 'incident_open',
+			monitorId: input.monitor.id,
+			model: settings.model,
+			outcome: 'ok',
+			latencyMs: result.latencyMs,
+			promptTokens: result.promptTokens,
+			completionTokens: result.completionTokens,
+			contextPreview: context,
+			outputPreview: result.content,
+		});
 		return message;
 	} catch (error) {
 		console.warn(

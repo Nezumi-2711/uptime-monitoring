@@ -37,6 +37,7 @@ type IncidentHistoryResponse = {
 
 async function resetDatabase() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM ai_events'),
 		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
 		env.DB.prepare('DELETE FROM maintenance_windows'),
 		env.DB.prepare('DELETE FROM checks'),
@@ -163,6 +164,52 @@ describe('public status API', () => {
 		const body = await (await statusFetch()).json<PublicStatusResponse>();
 		expect(body.overall).toBe('degraded');
 		expect(body.services[0]).toMatchObject({ status: 'degraded', message: DEGRADED_MESSAGE });
+	});
+
+	it('uses an open degraded incident update as the public latency message', async () => {
+		const monitorId = await insertMonitor({ name: 'Slow API', lastOk: true, lastDegraded: true, lastLatencyMs: 2200 });
+		const now = Date.now();
+		const inserted = await env.DB.prepare(
+			"INSERT INTO incidents (status, impact, source, kind, started_at, created_at, updated_at) VALUES ('investigating', 'minor', 'auto', 'degraded', ?, ?, ?)",
+		)
+			.bind(now, now, now)
+			.run();
+		const incidentId = Number(inserted.meta.last_row_id);
+		await env.DB.batch([
+			env.DB.prepare('INSERT INTO incident_monitors (incident_id, monitor_id) VALUES (?, ?)').bind(incidentId, monitorId),
+			env.DB.prepare(
+				"INSERT INTO incident_updates (incident_id, status, body, source, created_at) VALUES (?, 'investigating', 'Performance remains slower than usual.', 'ai', ?)",
+			).bind(incidentId, now),
+		]);
+		const body = await (await statusFetch()).json<PublicStatusResponse>();
+		expect(body.services[0].message).toBe('Performance remains slower than usual.');
+	});
+
+	it('never shadows a down incident message with a degraded incident', async () => {
+		const monitorId = await insertMonitor({ name: 'API', lastOk: false, lastDegraded: false, lastStatusCode: 503 });
+		const now = Date.now();
+		const degraded = await env.DB.prepare(
+			"INSERT INTO incidents (status, impact, source, kind, started_at, created_at, updated_at) VALUES ('investigating', 'minor', 'auto', 'degraded', ?, ?, ?)",
+		)
+			.bind(now + 1, now + 1, now + 1)
+			.run();
+		const down = await env.DB.prepare(
+			"INSERT INTO incidents (status, impact, source, kind, started_at, start_status_code, created_at, updated_at) VALUES ('investigating', 'major', 'auto', 'down', ?, 503, ?, ?)",
+		)
+			.bind(now, now, now)
+			.run();
+		await env.DB.batch([
+			env.DB.prepare('INSERT INTO incident_monitors (incident_id, monitor_id) VALUES (?, ?)').bind(degraded.meta.last_row_id, monitorId),
+			env.DB.prepare('INSERT INTO incident_monitors (incident_id, monitor_id) VALUES (?, ?)').bind(down.meta.last_row_id, monitorId),
+			env.DB.prepare(
+				"INSERT INTO incident_updates (incident_id, status, body, source, created_at) VALUES (?, 'investigating', 'Degraded copy.', 'ai', ?)",
+			).bind(degraded.meta.last_row_id, now),
+			env.DB.prepare(
+				"INSERT INTO incident_updates (incident_id, status, body, source, created_at) VALUES (?, 'investigating', 'Down copy.', 'ai', ?)",
+			).bind(down.meta.last_row_id, now),
+		]);
+		const body = await (await statusFetch()).json<PublicStatusResponse>();
+		expect(body.services[0]).toMatchObject({ status: 'down', message: 'Down copy.' });
 	});
 
 	it('excludes disabled monitors and reports degraded health for a partial outage', async () => {

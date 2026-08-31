@@ -4,6 +4,9 @@ export const INCIDENT_REASSURANCE =
 
 export const RECOVERY_UPDATE_BODY = 'The service has recovered and is responding normally again.';
 export const DEGRADED_MESSAGE = 'This service is responding more slowly than usual and some pages may take longer to load.';
+export const DEGRADED_RECOVERY_UPDATE_BODY = 'Response times have returned to normal and the service is operating normally.';
+export const DEGRADED_SUPERSEDED_UPDATE_BODY =
+	'The performance issue developed into a service disruption and is tracked in a new incident.';
 
 /** Plain-language, non-technical description of the impact, used when no AI message is available. */
 export function describeFailure(statusCode: number | null): string {

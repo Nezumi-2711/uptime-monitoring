@@ -6,14 +6,29 @@ export type CompletionSettings = {
 
 type CompletionBody = {
 	choices?: Array<{ message?: { content?: unknown } }>;
+	usage?: { prompt_tokens?: number; completion_tokens?: number };
 };
 
-export async function requestCompletion(
+export type CompletionResult = {
+	content: string | null;
+	latencyMs: number;
+	promptTokens: number | null;
+	completionTokens: number | null;
+	failure: string | null;
+};
+
+function failureMessage(error: unknown): string {
+	if (error instanceof DOMException && error.name === 'TimeoutError') return 'timeout';
+	return (error instanceof Error ? error.message : String(error)).slice(0, 200);
+}
+
+export async function requestCompletionDetailed(
 	settings: CompletionSettings,
 	system: string,
 	user: string,
 	maxTokens = 160,
-): Promise<string | null> {
+): Promise<CompletionResult> {
+	const startedAt = Date.now();
 	try {
 		const response = await fetch(`${settings.baseUrl}/chat/completions`, {
 			method: 'POST',
@@ -35,23 +50,52 @@ export async function requestCompletion(
 		if (!response.ok) {
 			await response.body?.cancel();
 			console.warn(JSON.stringify({ message: 'AI completion returned an error', status: response.status }));
-			return null;
+			return {
+				content: null,
+				latencyMs: Date.now() - startedAt,
+				promptTokens: null,
+				completionTokens: null,
+				failure: `http_${response.status}`,
+			};
 		}
 
 		const body = (await response.json()) as CompletionBody;
 		const content = body.choices?.[0]?.message?.content;
 		if (typeof content !== 'string') {
 			console.warn(JSON.stringify({ message: 'AI completion returned malformed content' }));
-			return null;
+			return {
+				content: null,
+				latencyMs: Date.now() - startedAt,
+				promptTokens: body.usage?.prompt_tokens ?? null,
+				completionTokens: body.usage?.completion_tokens ?? null,
+				failure: 'malformed',
+			};
 		}
-		return content;
+		return {
+			content,
+			latencyMs: Date.now() - startedAt,
+			promptTokens: body.usage?.prompt_tokens ?? null,
+			completionTokens: body.usage?.completion_tokens ?? null,
+			failure: null,
+		};
 	} catch (error) {
-		console.warn(
-			JSON.stringify({
-				message: 'AI completion failed',
-				error: error instanceof Error ? error.message : String(error),
-			}),
-		);
-		return null;
+		const failure = failureMessage(error);
+		console.warn(JSON.stringify({ message: 'AI completion failed', error: failure }));
+		return {
+			content: null,
+			latencyMs: Date.now() - startedAt,
+			promptTokens: null,
+			completionTokens: null,
+			failure,
+		};
 	}
+}
+
+export async function requestCompletion(
+	settings: CompletionSettings,
+	system: string,
+	user: string,
+	maxTokens = 160,
+): Promise<string | null> {
+	return (await requestCompletionDetailed(settings, system, user, maxTokens)).content;
 }

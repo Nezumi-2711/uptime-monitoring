@@ -71,6 +71,13 @@
       "when": 1788062139636,
       "tag": "0009_shocking_butterfly",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1788183346274,
+      "tag": "0010_slippery_mattie_franklin",
+      "breakpoints": true
     }
   ]
 }

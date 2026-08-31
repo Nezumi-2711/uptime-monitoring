@@ -267,6 +267,9 @@ incidentRoutes.patch('/:id', async (context) => {
 		);
 	}
 	if (parsed.value.monitorIds) {
+		if (parsed.value.title === undefined && parsed.value.impact === undefined) {
+			statements.push(db.update(incidents).set({ updatedAt: new Date() }).where(eq(incidents.id, id)));
+		}
 		statements.push(db.delete(incidentMonitors).where(eq(incidentMonitors.incidentId, id)));
 		statements.push(...parsed.value.monitorIds.map((monitorId) => db.insert(incidentMonitors).values({ incidentId: id, monitorId })));
 	}

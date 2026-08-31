@@ -36,6 +36,7 @@ const failedResult = {
 
 async function resetDatabase() {
 	await env.DB.batch([
+		env.DB.prepare('DELETE FROM ai_events'),
 		env.DB.prepare('DELETE FROM checks'),
 		env.DB.prepare('DELETE FROM incident_updates'),
 		env.DB.prepare('DELETE FROM incident_monitors'),
