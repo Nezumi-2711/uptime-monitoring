@@ -20,6 +20,21 @@ type PublicStatusResponse = {
 	}>;
 };
 
+type IncidentHistoryResponse = {
+	incidents: Array<{
+		id: number;
+		title: string;
+		status: string;
+		impact: string;
+		source: string;
+		startedAt: string;
+		resolvedAt: string | null;
+		durationMs: number | null;
+		latestUpdate: { status: string; body: string; createdAt: string } | null;
+		services: Array<{ id: number; name: string }>;
+	}>;
+};
+
 async function resetDatabase() {
 	await env.DB.batch([
 		env.DB.prepare('DELETE FROM maintenance_window_monitors'),
@@ -235,5 +250,57 @@ describe('public status API', () => {
 		const response = await statusFetch(`/api/status/${id}/favicon`);
 		expect(response.status).toBe(404);
 		expect(await response.json()).toEqual({ message: 'Service not found' });
+	});
+
+	describe('incident history', () => {
+		it('returns recent resolved incident details and excludes incidents older than 30 days', async () => {
+			const monitorId = await insertMonitor({ name: 'Payments API', lastOk: true });
+			const now = Date.now();
+			const startedAt = now - 2 * 60 * 60 * 1_000;
+			const resolvedAt = now - 60 * 60 * 1_000;
+			const incidentResult = await env.DB.prepare(
+				`INSERT INTO incidents (
+					title, status, impact, source, started_at, resolved_at, duration_ms, created_at, updated_at
+				) VALUES ('Payment processing disruption', 'resolved', 'critical', 'manual', ?, ?, ?, ?, ?)`,
+			)
+				.bind(startedAt, resolvedAt, resolvedAt - startedAt, startedAt, resolvedAt)
+				.run();
+			const incidentId = Number(incidentResult.meta.last_row_id);
+			await env.DB.batch([
+				env.DB.prepare('INSERT INTO incident_monitors (incident_id, monitor_id) VALUES (?, ?)').bind(incidentId, monitorId),
+				env.DB.prepare(
+					"INSERT INTO incident_updates (incident_id, status, body, source, created_at) VALUES (?, 'monitoring', 'Recovery is in progress.', 'manual', ?)",
+				).bind(incidentId, startedAt + 15 * 60 * 1_000),
+				env.DB.prepare(
+					"INSERT INTO incident_updates (incident_id, status, body, source, created_at) VALUES (?, 'resolved', 'Payment processing has fully recovered.', 'manual', ?)",
+				).bind(incidentId, resolvedAt),
+				env.DB.prepare(
+					`INSERT INTO incidents (
+						title, status, impact, source, started_at, resolved_at, duration_ms, created_at, updated_at
+					) VALUES ('Old disruption', 'resolved', 'minor', 'manual', ?, ?, ?, ?, ?)`,
+				).bind(now - 32 * DAY_MS, now - 31 * DAY_MS, DAY_MS, now - 32 * DAY_MS, now - 31 * DAY_MS),
+			]);
+
+			const response = await statusFetch('/api/status/incidents');
+			const body = await response.json<IncidentHistoryResponse>();
+
+			expect(response.status).toBe(200);
+			expect(body.incidents).toHaveLength(1);
+			expect(body.incidents[0]).toMatchObject({
+				id: incidentId,
+				title: 'Payment processing disruption',
+				status: 'resolved',
+				impact: 'critical',
+				source: 'manual',
+				durationMs: resolvedAt - startedAt,
+				services: [{ id: monitorId, name: 'Payments API' }],
+				latestUpdate: {
+					status: 'resolved',
+					body: 'Payment processing has fully recovered.',
+				},
+			});
+			expect(body.incidents[0].startedAt).toBe(new Date(startedAt).toISOString());
+			expect(body.incidents[0].resolvedAt).toBe(new Date(resolvedAt).toISOString());
+		});
 	});
 });

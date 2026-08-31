@@ -244,10 +244,8 @@ statusRoutes.get('/incidents', async (context) => {
 		.where(and(eq(incidents.status, 'resolved'), gte(incidents.resolvedAt, new Date(Date.now() - 30 * DAY_MS))))
 		.orderBy(desc(incidents.resolvedAt))
 		.limit(limit);
-	const services = await loadServices(
-		db,
-		rows.map((row) => row.id),
-	);
+	const incidentIds = rows.map((row) => row.id);
+	const [services, latestUpdates] = await Promise.all([loadServices(db, incidentIds), loadLatestUpdates(db, incidentIds)]);
 	return context.json({
 		incidents: rows.map((incident) => ({
 			id: incident.id,
@@ -258,6 +256,7 @@ statusRoutes.get('/incidents', async (context) => {
 			startedAt: incident.startedAt.toISOString(),
 			resolvedAt: incident.resolvedAt?.toISOString() ?? null,
 			durationMs: incident.durationMs,
+			latestUpdate: latestUpdates.get(incident.id) ?? null,
 			services: services.get(incident.id) ?? [],
 		})),
 	});

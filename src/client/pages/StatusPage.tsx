@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Activity, CircleCheck, Database, RefreshCw, TriangleAlert, Wrench, Zap } from 'lucide-react';
+import { Activity, ChevronRight, CircleCheck, Database, History, RefreshCw, TriangleAlert, Wrench, Zap } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import type { PublicOverallStatus, PublicServiceStatus } from '../api/status';
 import { SiteIcon } from '../components/SiteIcon';
 import { StatusHistoryBar } from '../components/StatusHistoryBar';
+import { formatDate, formatDuration } from '../lib/format';
 import { navigate } from '../lib/router';
 import { useSessionQuery } from '../queries/auth';
 import { useIncidentHistoryQuery, useStatusQuery } from '../queries/status';
@@ -33,7 +34,15 @@ const SERVICE_STATUS: Record<PublicServiceStatus, { label: string; className: Ba
 	maintenance: { label: 'Under maintenance', className: 'maintenance' },
 };
 
+const INCIDENT_IMPACT: Record<string, { label: string; tone: string }> = {
+	critical: { label: 'Critical', tone: 'critical' },
+	major: { label: 'Major', tone: 'major' },
+	minor: { label: 'Minor', tone: 'minor' },
+	none: { label: 'Maintenance', tone: 'none' },
+};
+
 const maintenanceTime = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+const resolvedTime = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 
 function errorMessage(error: unknown) {
 	return error instanceof Error ? error.message : 'Unknown request error';
@@ -61,6 +70,7 @@ export function StatusPage() {
 	const status = statusQuery.data;
 	const activeIncidents = status?.activeIncidents ?? [];
 	const maintenanceServices = status?.services.filter((service) => service.maintenance) ?? [];
+	const pastIncidents = historyQuery.data?.incidents ?? [];
 
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(Date.now()), 5_000);
@@ -269,25 +279,72 @@ export function StatusPage() {
 							)}
 						</section>
 
-						{(historyQuery.data?.incidents.length ?? 0) > 0 && (
+						{!historyQuery.isPending && !historyQuery.isError && (
 							<section className="past-incidents" aria-labelledby="past-incidents-title">
-								<header>
-									<div>
-										<p className="overline">Last 30 days</p>
-										<h2 id="past-incidents-title">Past incidents</h2>
+								<header className="past-incidents-header">
+									<div className="past-incidents-heading">
+										<span className="past-incidents-icon">
+											<History aria-hidden="true" />
+										</span>
+										<div>
+											<p>Last 30 days</p>
+											<h2 id="past-incidents-title">Past incidents</h2>
+										</div>
 									</div>
+									<span className="past-incidents-count">
+										{pastIncidents.length === 0 ? 'No incidents' : `${pastIncidents.length} resolved`}
+									</span>
 								</header>
-								<div>
-									{historyQuery.data!.incidents.map((incident) => (
-										<button key={incident.id} type="button" onClick={() => navigate(`/incidents/${incident.id}`)}>
-											<span>
-												<strong>{incident.title}</strong>
-												<small>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(incident.startedAt))}</small>
-											</span>
-											<Badge variant="online">Resolved</Badge>
-										</button>
-									))}
-								</div>
+
+								{pastIncidents.length === 0 ? (
+									<Empty className="min-h-70 place-content-center p-12">
+										<EmptyMedia variant="icon">
+											<CircleCheck />
+										</EmptyMedia>
+										<EmptyTitle>No incidents in the last 30 days</EmptyTitle>
+										<EmptyDescription>Every monitored service stayed healthy for the full window.</EmptyDescription>
+									</Empty>
+								) : (
+									<div className="past-incident-list">
+										{pastIncidents.map((incident) => {
+											const impact = INCIDENT_IMPACT[incident.impact] ?? INCIDENT_IMPACT.none;
+											return (
+												<button
+													className="past-incident-row"
+													key={incident.id}
+													type="button"
+													onClick={() => navigate(`/incidents/${incident.id}`)}
+												>
+													<span className="past-incident-icon">
+														<CircleCheck aria-hidden="true" />
+													</span>
+													<span className="past-incident-body">
+														<span className="past-incident-title">
+															<strong>{incident.title}</strong>
+															<span className={`past-incident-impact ${impact.tone}`}>{impact.label}</span>
+														</span>
+														<span className="past-incident-services">
+															{incident.services.length
+																? incident.services.map((service) => service.name).join(', ')
+																: 'General service incident'}
+														</span>
+														{incident.latestUpdate?.body && <span className="past-incident-summary">{incident.latestUpdate.body}</span>}
+														<span className="past-incident-meta">
+															<time dateTime={incident.startedAt}>{formatDate(incident.startedAt)}</time>
+															<i aria-hidden="true">·</i> down {formatDuration(incident.durationMs ?? null, incident.startedAt)}
+															{incident.resolvedAt && (
+																<>
+																	<i aria-hidden="true">·</i> resolved {resolvedTime.format(new Date(incident.resolvedAt))}
+																</>
+															)}
+														</span>
+													</span>
+													<ChevronRight className="past-incident-chevron" aria-hidden="true" />
+												</button>
+											);
+										})}
+									</div>
+								)}
 							</section>
 						)}
 					</>
