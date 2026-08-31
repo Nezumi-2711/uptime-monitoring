@@ -23,33 +23,47 @@ export function IncidentDetailPage({ id }: { id: number }) {
 			</header>
 			<main className="status-main incident-detail-page">
 				<button className="incident-back" type="button" onClick={() => navigate('/')}>
-					<ArrowLeft /> All service status
+					<ArrowLeft aria-hidden="true" /> All service status
 				</button>
 				{query.isPending ? (
 					<p className="status-loading" aria-busy="true">
 						Loading incident…
 					</p>
 				) : query.isError || !query.data ? (
-					<section className="incident-detail-card">
-						<TriangleAlert />
+					<section className="incident-detail-card incident-detail-error">
+						<TriangleAlert aria-hidden="true" />
 						<h1>Incident not found</h1>
-						<p>{query.error?.message}</p>
+						<p>{query.error?.message ?? 'The requested incident could not be loaded.'}</p>
 					</section>
 				) : (
 					<article className="incident-detail-card">
 						<header className="incident-detail-header">
-							<div>
+							<div className="incident-detail-title">
 								<p className="overline">Incident report</p>
 								<h1>{query.data.incident.title}</h1>
 							</div>
 							<Badge variant={query.data.incident.status === 'resolved' ? 'online' : 'offline'}>{query.data.incident.status}</Badge>
 						</header>
-						<p className="incident-detail-meta">Started {dateTime.format(new Date(query.data.incident.startedAt))}</p>
-						{query.data.incident.services.length > 0 && (
-							<p className="incident-detail-services">
-								<strong>Affected services:</strong> {query.data.incident.services.map((service) => service.name).join(', ')}
-							</p>
-						)}
+						<dl className="incident-detail-summary">
+							<div>
+								<dt>Started</dt>
+								<dd>
+									<time dateTime={query.data.incident.startedAt}>{dateTime.format(new Date(query.data.incident.startedAt))}</time>
+								</dd>
+							</div>
+							<div>
+								<dt>Impact</dt>
+								<dd className="incident-detail-impact">{query.data.incident.impact}</dd>
+							</div>
+							<div>
+								<dt>Affected services</dt>
+								<dd>
+									{query.data.incident.services.length > 0
+										? query.data.incident.services.map((service) => service.name).join(', ')
+										: 'General service incident'}
+								</dd>
+							</div>
+						</dl>
 						<IncidentTimeline updates={query.data.incident.updates ?? []} />
 					</article>
 				)}
