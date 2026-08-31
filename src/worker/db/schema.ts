@@ -40,7 +40,11 @@ export const loginAttempts = sqliteTable(
 		ipAddress: text('ip_address').notNull(),
 		attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
 	},
-	(table) => [index('login_attempts_ip_attempted_at_idx').on(table.ipAddress, table.attemptedAt)],
+	(table) => [
+		index('login_attempts_ip_attempted_at_idx').on(table.ipAddress, table.attemptedAt),
+		// Retention cleanup filters on attempted_at alone; the composite index above cannot serve it.
+		index('login_attempts_attempted_at_idx').on(table.attemptedAt),
+	],
 );
 
 export const monitors = sqliteTable(
@@ -128,7 +132,12 @@ export const checks = sqliteTable(
 		maintenance: integer('maintenance', { mode: 'boolean' }).notNull().default(false),
 		degraded: integer('degraded', { mode: 'boolean' }).notNull().default(false),
 	},
-	(table) => [index('checks_monitor_id_checked_at_idx').on(table.monitorId, table.checkedAt)],
+	(table) => [
+		index('checks_monitor_id_checked_at_idx').on(table.monitorId, table.checkedAt),
+		// Daily rollup and retention cleanup scan by checked_at across every monitor; without this
+		// index those become full-table scans, which dominate D1 "rows read" at scale.
+		index('checks_checked_at_idx').on(table.checkedAt),
+	],
 );
 
 export const incidents = sqliteTable(
@@ -247,7 +256,11 @@ export const notificationDeliveries = sqliteTable(
 		attempts: integer('attempts').notNull().default(1),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 	},
-	(table) => [index('notification_deliveries_channel_id_created_at_idx').on(table.channelId, table.createdAt)],
+	(table) => [
+		index('notification_deliveries_channel_id_created_at_idx').on(table.channelId, table.createdAt),
+		// Retention cleanup filters on created_at alone; the composite index above cannot serve it.
+		index('notification_deliveries_created_at_idx').on(table.createdAt),
+	],
 );
 
 export const monitorDailyStats = sqliteTable(
@@ -264,5 +277,9 @@ export const monitorDailyStats = sqliteTable(
 		minLatencyMs: integer('min_latency_ms'),
 		maxLatencyMs: integer('max_latency_ms'),
 	},
-	(table) => [uniqueIndex('monitor_daily_stats_monitor_id_day_uidx').on(table.monitorId, table.day)],
+	(table) => [
+		uniqueIndex('monitor_daily_stats_monitor_id_day_uidx').on(table.monitorId, table.day),
+		// Retention cleanup filters on day alone; the composite unique index above cannot serve it.
+		index('monitor_daily_stats_day_idx').on(table.day),
+	],
 );

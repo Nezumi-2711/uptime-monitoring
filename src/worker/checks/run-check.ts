@@ -11,7 +11,11 @@ export type CheckResult = {
 	error: string | null;
 };
 
-export const MAX_BODY_MATCH_BYTES = 256 * 1024;
+// Keyword matching decodes and lowercases this many bytes of the response body on the hot
+// path. 64 KiB covers page titles, health-check payloads and status JSON while keeping the
+// per-check CPU cost small — the free plan allows only 10 ms of CPU per invocation and one
+// scheduled run decodes bodies for every keyword monitor.
+export const MAX_BODY_MATCH_BYTES = 64 * 1024;
 
 function requestHeaders(monitor: Monitor) {
 	let configured: Record<string, string> = {};

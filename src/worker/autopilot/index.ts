@@ -14,11 +14,12 @@ import type { CheckResult, Monitor } from '../checks/run-check';
 import { getDb } from '../db/client';
 import { aiSettings, incidentUpdates, incidents } from '../db/schema';
 import { humanizeDuration } from '../lib/humanize';
+import { resolveRunLimits } from '../lib/runtime-config';
 import { advanceStatus, computeImpact, nextFollowupDueAt, type AutopilotIncidentStatus } from './cadence';
 import { loadIncidentSignal, findLatestAutoIncidentForMonitor } from './signal';
 
-export const MAX_AI_CALLS_PER_RUN = 12;
-export const MAX_FOLLOWUP_CALLS_PER_RUN = 6;
+// Per-pass ceilings come from resolveRunLimits(env): AI_CALLS_PER_RUN / AI_FOLLOWUP_CALLS_PER_RUN,
+// defaulting to DEFAULT_RUN_LIMITS. They keep one autopilot pass within the free-plan subrequest budget.
 export const AUTOPILOT_CONCURRENCY = 4;
 export const AUTOPILOT_DEADLINE_MS = 45_000;
 
@@ -215,6 +216,7 @@ async function processFollowup(env: Env, settings: Settings, incident: typeof in
 
 async function loadFollowupTasks(env: Env, settings: Settings, excluded: Set<number>): Promise<Task[]> {
 	const db = getDb(env);
+	const maxFollowups = resolveRunLimits(env).aiFollowupCallsPerRun;
 	const rows = await db
 		.select({
 			incident: incidents,
@@ -264,7 +266,7 @@ async function loadFollowupTasks(env: Env, settings: Settings, excluded: Set<num
 			monitorId: signal.monitor.id,
 			run: () => processFollowup(env, settings, row.incident),
 		});
-		if (tasks.length >= MAX_FOLLOWUP_CALLS_PER_RUN) break;
+		if (tasks.length >= maxFollowups) break;
 	}
 	return tasks;
 }
@@ -277,7 +279,7 @@ export async function runAutopilot(
 	const db = getDb(env);
 	const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1);
 	if (!settings?.enabled || !settings.autopilotEnabled || !settings.baseUrl || !settings.apiKey || !settings.model) return summary;
-	const budget = input.budget ?? { remaining: MAX_AI_CALLS_PER_RUN, deadline: Date.now() + AUTOPILOT_DEADLINE_MS };
+	const budget = input.budget ?? { remaining: resolveRunLimits(env).aiCallsPerRun, deadline: Date.now() + AUTOPILOT_DEADLINE_MS };
 	budget.deadline ??= Date.now() + AUTOPILOT_DEADLINE_MS;
 	const tasks: Task[] = [];
 	const excluded = new Set<number>();

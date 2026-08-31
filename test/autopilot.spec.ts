@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { advanceStatus, computeImpact, nextFollowupDueAt } from '../src/worker/autopilot/cadence';
 import { recordAiEvent } from '../src/worker/ai/events';
 import { sanitizePublicTextWithReason } from '../src/worker/ai/sanitize';
-import { AI_EVENT_RETENTION_MS, cleanupExpiredAuthRecords } from '../src/worker/scheduled/cleanup';
+import { AI_EVENT_RETENTION_MS, cleanupStaleData } from '../src/worker/scheduled/cleanup';
 
 describe('incident autopilot', () => {
 	beforeAll(async () => {
@@ -58,7 +58,7 @@ describe('incident autopilot', () => {
 		await env.DB.prepare("INSERT INTO ai_events (kind, outcome, created_at) VALUES ('settings_test', 'ok', ?)")
 			.bind(Date.now() - AI_EVENT_RETENTION_MS - 1)
 			.run();
-		await cleanupExpiredAuthRecords(env);
+		await cleanupStaleData(env);
 		expect((await env.DB.prepare('SELECT count(*) AS count FROM ai_events').first<{ count: number }>())?.count).toBe(0);
 	});
 

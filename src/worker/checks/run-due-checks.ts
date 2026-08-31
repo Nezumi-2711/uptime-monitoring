@@ -2,16 +2,18 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { AutopilotEvent } from '../autopilot';
 import { getDb } from '../db/client';
 import { aiSettings, monitors } from '../db/schema';
+import { DEFAULT_RUN_LIMITS, resolveRunLimits } from '../lib/runtime-config';
 import { loadActiveMaintenance } from '../maintenance/windows';
 import { buildAlertEvent } from '../notifications/compose';
-import { dispatchNotification, MAX_NOTIFICATIONS_PER_RUN, type NotificationBudget } from '../notifications/dispatch';
+import { dispatchNotification, type NotificationBudget } from '../notifications/dispatch';
 import { buildResultStatements } from './persist-result';
 import { runCheck, runCheckWithRetries, type RetryBudget } from './run-check';
 
 const MAX_MONITORS_PER_RUN = 40;
 const CONCURRENCY = 10;
 const MAX_BATCH_STATEMENTS = 100;
-export const MAX_RETRY_ATTEMPTS_PER_RUN = 60;
+/** Default retry ceiling for one scheduled run; override with the RETRY_ATTEMPTS_PER_RUN env var. */
+export const MAX_RETRY_ATTEMPTS_PER_RUN = DEFAULT_RUN_LIMITS.retryAttemptsPerRun;
 const RETRY_DEADLINE_MS = 90_000;
 
 export type DueCheckSummary = {
@@ -40,11 +42,12 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		.limit(MAX_MONITORS_PER_RUN);
 
 	if (due.length === 0) return { checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0, events: [] };
+	const limits = resolveRunLimits(env);
 	const [activeMaintenance, [settings]] = await Promise.all([
 		loadActiveMaintenance(db, new Date()),
 		db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1),
 	]);
-	const budget: RetryBudget = { remaining: MAX_RETRY_ATTEMPTS_PER_RUN, deadline: Date.now() + RETRY_DEADLINE_MS };
+	const budget: RetryBudget = { remaining: limits.retryAttemptsPerRun, deadline: Date.now() + RETRY_DEADLINE_MS };
 
 	const completed: Array<{
 		monitor: (typeof due)[number];
@@ -84,7 +87,7 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 	}
 	if (statementChunk.length > 0) await db.batch(statementChunk as [(typeof statementChunk)[number], ...typeof statementChunk]);
 
-	const notificationBudget: NotificationBudget = { remaining: MAX_NOTIFICATIONS_PER_RUN };
+	const notificationBudget: NotificationBudget = { remaining: limits.notificationsPerRun };
 	const notifications = persisted.flatMap((item) => {
 		const work: Promise<unknown>[] = [];
 		if (item.transition === 'opened' || item.transition === 'resolved') {

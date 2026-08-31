@@ -1,8 +1,9 @@
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { DEGRADED_MESSAGE, deterministicIncidentMessage } from '../ai/fallback-message';
 import { getDb } from '../db/client';
 import { checks, incidentMonitors, incidents, incidentUpdates, monitorDailyStats, monitors } from '../db/schema';
+import { resolveStatusCacheSeconds } from '../lib/runtime-config';
 import { loadActiveMaintenance, type ActiveMaintenance } from '../maintenance/windows';
 import { resolveFavicon } from './monitors';
 
@@ -111,9 +112,58 @@ const incidentSelection = {
 	startStatusCode: incidents.startStatusCode,
 };
 
+function edgeCache(): EdgeCache | null {
+	try {
+		return (caches as CacheStorage & { readonly default: EdgeCache }).default;
+	} catch {
+		return null;
+	}
+}
+
+// Key on origin + path only. These responses do not vary by query string, so ignoring it also
+// stops `?x=1`, `?x=2`, … spray from bypassing the cache and hammering D1 on every request.
+function statusCacheKey(context: Context<{ Bindings: Env }>): Request {
+	const url = new URL(context.req.url);
+	return new Request(`${url.origin}${url.pathname}`);
+}
+
+/**
+ * The public status endpoints are polled by every open status-page tab every 60s. Serving them
+ * from the edge cache collapses that traffic to one origin computation per window and keeps the
+ * `checks` / `monitor_daily_stats` scans they run off D1's free-tier read budget. Set the
+ * STATUS_CACHE_SECONDS env var to 0 to disable.
+ */
+async function cachedStatusResponse(context: Context<{ Bindings: Env }>): Promise<Response | undefined> {
+	if (resolveStatusCacheSeconds(context.env) <= 0) return undefined;
+	const cache = edgeCache();
+	if (!cache) return undefined;
+	try {
+		return await cache.match(statusCacheKey(context));
+	} catch {
+		return undefined;
+	}
+}
+
+function jsonWithEdgeCache(context: Context<{ Bindings: Env }>, body: unknown): Response {
+	const seconds = resolveStatusCacheSeconds(context.env);
+	if (seconds <= 0) return Response.json(body);
+	const response = Response.json(body, { headers: { 'Cache-Control': `public, max-age=${seconds}` } });
+	const cache = edgeCache();
+	if (cache) {
+		try {
+			context.executionCtx.waitUntil(cache.put(statusCacheKey(context), response.clone()).catch(() => undefined));
+		} catch {
+			// No ExecutionContext available (e.g. unit tests): serve without populating the edge cache.
+		}
+	}
+	return response;
+}
+
 const statusRoutes = new Hono<{ Bindings: Env }>();
 
 statusRoutes.get('/', async (context) => {
+	const cached = await cachedStatusResponse(context);
+	if (cached) return cached;
 	const db = getDb(context.env);
 	const monitorRows = await db
 		.select({
@@ -230,7 +280,7 @@ statusRoutes.get('/', async (context) => {
 		latestUpdate: latestUpdates.get(incident.id) ?? null,
 		services: incidentServices.get(incident.id) ?? [],
 	}));
-	return context.json({
+	return jsonWithEdgeCache(context, {
 		overall: overallStatus(
 			services.map((service) => service.status),
 			activeIncidentRows.filter((incident) => incident.source === 'manual').map((incident) => incident.impact),
@@ -242,6 +292,8 @@ statusRoutes.get('/', async (context) => {
 });
 
 statusRoutes.get('/incidents', async (context) => {
+	const cached = await cachedStatusResponse(context);
+	if (cached) return cached;
 	const db = getDb(context.env);
 	const limit = parseLimit(context.req.query('limit'), 20, 20);
 	const rows = await db
@@ -252,7 +304,7 @@ statusRoutes.get('/incidents', async (context) => {
 		.limit(limit);
 	const incidentIds = rows.map((row) => row.id);
 	const [services, latestUpdates] = await Promise.all([loadServices(db, incidentIds), loadLatestUpdates(db, incidentIds)]);
-	return context.json({
+	return jsonWithEdgeCache(context, {
 		incidents: rows.map((incident) => ({
 			id: incident.id,
 			title: publicIncidentTitle(incident),

@@ -9,7 +9,7 @@ import maintenanceRoutes from './routes/maintenance';
 import monitorRoutes from './routes/monitors';
 import settingsRoutes from './routes/settings';
 import statusRoutes from './routes/status';
-import { cleanupExpiredAuthRecords } from './scheduled/cleanup';
+import { cleanupExpiredAuthRecords, cleanupStaleData } from './scheduled/cleanup';
 import { runDailyRollup } from './scheduled/rollup';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -41,6 +41,7 @@ export default {
 	async scheduled(controller, env, ctx) {
 		if (controller.cron === '5 0 * * *') {
 			const result = await runDailyRollup(env, new Date(controller.scheduledTime));
+			await cleanupStaleData(env);
 			console.log(
 				JSON.stringify({
 					message: 'daily rollup completed',
