@@ -15,6 +15,10 @@ import { runDailyRollup } from './scheduled/rollup';
 
 const app = new Hono<{ Bindings: Env }>();
 
+export function shouldRunFiveMinuteWork(scheduledTime: number): boolean {
+	return new Date(scheduledTime).getUTCMinutes() % 5 === 0;
+}
+
 app.use('/api/*', csrf());
 
 app.route(
@@ -46,8 +50,9 @@ export default {
 	fetch: app.fetch,
 	async scheduled(controller, env, ctx) {
 		if (controller.cron === '5 0 * * *') {
-			const result = await runDailyRollup(env, new Date(controller.scheduledTime));
-			await cleanupStaleData(env);
+			const scheduledAt = new Date(controller.scheduledTime);
+			const result = await runDailyRollup(env, scheduledAt);
+			await cleanupStaleData(env, scheduledAt);
 			console.log(
 				JSON.stringify({
 					message: 'daily rollup completed',
@@ -59,10 +64,11 @@ export default {
 			return;
 		}
 
-		await cleanupExpiredAuthRecords(env);
+		const runFiveMinuteWork = shouldRunFiveMinuteWork(controller.scheduledTime);
+		if (runFiveMinuteWork) await cleanupExpiredAuthRecords(env);
 		const result = await runDueChecks(env, ctx);
 		ctx.waitUntil(
-			runAutopilot(env, { events: result.events }).then((autopilot) => {
+			runAutopilot(env, { events: result.events, skipSweep: !runFiveMinuteWork }).then((autopilot) => {
 				console.log(JSON.stringify({ message: 'autopilot run completed', ...autopilot }));
 			}),
 		);

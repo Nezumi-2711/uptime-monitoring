@@ -371,7 +371,21 @@ monitorRoutes.get('/:id/checks', async (context) => {
 	const id = parseId(context.req.param('id'));
 	if (id === null) return context.json({ message: 'Monitor not found' }, 404);
 	const limit = parseLimit(context.req.query('limit'), 100, 500);
-	const rows = await getDb(context.env).select().from(checks).where(eq(checks.monitorId, id)).orderBy(desc(checks.checkedAt)).limit(limit);
+	const rows = await getDb(context.env)
+		.select({
+			id: checks.id,
+			ok: checks.ok,
+			degraded: checks.degraded,
+			statusCode: checks.statusCode,
+			latencyMs: checks.latencyMs,
+			error: checks.error,
+			checkedAt: checks.checkedAt,
+			maintenance: checks.maintenance,
+		})
+		.from(checks)
+		.where(eq(checks.monitorId, id))
+		.orderBy(desc(checks.checkedAt))
+		.limit(limit);
 	return context.json({ checks: rows });
 });
 
@@ -424,7 +438,7 @@ monitorRoutes.get('/:id/stats', async (context) => {
 	const currentDayMs = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate());
 	const windows = [
 		{ key: '24h', start: now - 24 * 60 * 60 * 1000, raw: true },
-		{ key: '7d', start: now - 7 * 24 * 60 * 60 * 1000, raw: true },
+		{ key: '7d', start: currentDayMs - 6 * 24 * 60 * 60 * 1000, raw: false },
 		{ key: '30d', start: currentDayMs - 29 * 24 * 60 * 60 * 1000, raw: false },
 		{ key: '90d', start: currentDayMs - 89 * 24 * 60 * 60 * 1000, raw: false },
 	] as const;
@@ -517,6 +531,8 @@ monitorRoutes.post('/', async (context) => {
 	if (!parsed.ok) return context.json({ message: parsed.message }, 400);
 
 	const now = new Date();
+	const intervalSeconds = parsed.value.intervalSeconds!;
+	const lastCheckedAt = new Date(now.getTime() - Math.floor(Math.random() * intervalSeconds) * 1000);
 	const [monitor] = await getDb(context.env)
 		.insert(monitors)
 		.values({
@@ -529,12 +545,13 @@ monitorRoutes.post('/', async (context) => {
 			requestHeaders: parsed.value.requestHeaders ?? null,
 			requestBody: parsed.value.requestBody ?? null,
 			degradedLatencyMs: parsed.value.degradedLatencyMs ?? null,
-			intervalSeconds: parsed.value.intervalSeconds!,
+			intervalSeconds,
 			timeoutMs: parsed.value.timeoutMs!,
 			retryCount: parsed.value.retryCount ?? 1,
 			failureThreshold: parsed.value.failureThreshold ?? 2,
 			enabled: parsed.value.enabled ?? true,
 			alertsEnabled: parsed.value.alertsEnabled ?? true,
+			lastCheckedAt,
 			createdAt: now,
 			updatedAt: now,
 		})

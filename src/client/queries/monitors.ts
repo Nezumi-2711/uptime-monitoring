@@ -26,7 +26,7 @@ export const monitorsQueryOptions = () =>
 	queryOptions({
 		queryKey: monitorKeys.list(),
 		queryFn: ({ signal }) => listMonitors(signal),
-		refetchInterval: 60_000,
+		refetchInterval: 120_000,
 		refetchIntervalInBackground: false,
 	});
 
@@ -35,7 +35,7 @@ export function useMonitorsQuery() {
 }
 
 const liveQueryDefaults = {
-	refetchInterval: 60_000,
+	refetchInterval: 120_000,
 	refetchIntervalInBackground: false,
 } as const;
 
@@ -62,7 +62,8 @@ export function useMonitorStatsQuery(id: number) {
 		queryKey: monitorKeys.stats(id),
 		queryFn: ({ signal }) => getMonitorStats(id, signal),
 		enabled: Number.isSafeInteger(id) && id > 0,
-		...liveQueryDefaults,
+		refetchInterval: 300_000,
+		refetchIntervalInBackground: false,
 	});
 }
 
@@ -71,7 +72,8 @@ export function useMonitorIncidentsQuery(id: number) {
 		queryKey: monitorKeys.incidents(id),
 		queryFn: ({ signal }) => listIncidents(id, 50, signal),
 		enabled: Number.isSafeInteger(id) && id > 0,
-		...liveQueryDefaults,
+		refetchInterval: 300_000,
+		refetchIntervalInBackground: false,
 	});
 }
 

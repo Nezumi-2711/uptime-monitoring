@@ -118,5 +118,26 @@ describe('scheduled cleanup', () => {
 			expect(await count('notification_deliveries')).toBe(1);
 			expect(await count('ai_events')).toBe(1);
 		});
+
+		it('retains fresh checks even when a stale check has a higher id', async () => {
+			const now = new Date('2026-09-02T12:00:00Z');
+			const monitorId = await insertMonitor();
+			await env.DB.batch([
+				// Insert the fresh check first so primary-key and timestamp order disagree.
+				env.DB.prepare('INSERT INTO checks (monitor_id, ok, latency_ms, checked_at) VALUES (?, 1, 100, ?)').bind(
+					monitorId,
+					now.getTime() - DAY_MS,
+				),
+				env.DB.prepare('INSERT INTO checks (monitor_id, ok, latency_ms, checked_at) VALUES (?, 0, 300, ?)').bind(
+					monitorId,
+					now.getTime() - 8 * DAY_MS,
+				),
+			]);
+
+			await cleanupStaleData(env, now);
+
+			const checks = await env.DB.prepare('SELECT ok FROM checks ORDER BY id').all<{ ok: number }>();
+			expect(checks.results).toEqual([{ ok: 1 }]);
+		});
 	});
 });

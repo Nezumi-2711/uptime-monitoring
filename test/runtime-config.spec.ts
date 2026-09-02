@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	DEFAULT_CHECK_RUN_CONFIG,
 	DEFAULT_RUN_LIMITS,
 	DEFAULT_STATUS_CACHE_SECONDS,
+	resolveCheckRunConfig,
 	resolveRunLimits,
 	resolveStatusCacheSeconds,
 } from '../src/worker/lib/runtime-config';
@@ -33,6 +35,20 @@ describe('resolveRunLimits', () => {
 		expect(resolveRunLimits(asEnv({ AI_FOLLOWUP_CALLS_PER_RUN: '2.5' })).aiFollowupCallsPerRun).toBe(
 			DEFAULT_RUN_LIMITS.aiFollowupCallsPerRun,
 		);
+	});
+});
+
+describe('resolveCheckRunConfig', () => {
+	it('defaults to free-tier-safe check sizing', () => {
+		expect(resolveCheckRunConfig(asEnv({}))).toEqual(DEFAULT_CHECK_RUN_CONFIG);
+	});
+
+	it('accepts positive integer overrides and rejects invalid values', () => {
+		expect(resolveCheckRunConfig(asEnv({ MAX_MONITORS_PER_RUN: '25', CHECK_CONCURRENCY: '4' }))).toEqual({
+			maxMonitorsPerRun: 25,
+			concurrency: 4,
+		});
+		expect(resolveCheckRunConfig(asEnv({ MAX_MONITORS_PER_RUN: '0', CHECK_CONCURRENCY: '2.5' }))).toEqual(DEFAULT_CHECK_RUN_CONFIG);
 	});
 });
 

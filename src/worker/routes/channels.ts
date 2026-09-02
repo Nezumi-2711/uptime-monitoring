@@ -142,12 +142,12 @@ channelRoutes.post('/', async (context) => {
 		})
 		.returning();
 	if (monitorIds.length > 0) {
-		await db.batch(
-			monitorIds.map((monitorId) => db.insert(notificationChannelMonitors).values({ channelId: channel.id, monitorId })) as [
-				ReturnType<typeof db.insert>,
-				...ReturnType<typeof db.insert>[],
-			],
-		);
+		await context.env.DB.prepare(
+			`INSERT INTO notification_channel_monitors (channel_id, monitor_id)
+			 SELECT ?2, value FROM json_each(?1)`,
+		)
+			.bind(JSON.stringify(monitorIds), channel.id)
+			.run();
 	}
 	return context.json({ channel: publicChannel(channel, monitorIds, null) }, 201);
 });

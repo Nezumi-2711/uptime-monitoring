@@ -1,20 +1,17 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { AutopilotEvent } from '../autopilot';
 import { getDb } from '../db/client';
 import { aiSettings, monitors } from '../db/schema';
-import { DEFAULT_RUN_LIMITS, resolveRunLimits } from '../lib/runtime-config';
+import { DEFAULT_RUN_LIMITS, resolveCheckRunConfig, resolveRunLimits } from '../lib/runtime-config';
 import { loadActiveMaintenance } from '../maintenance/windows';
 import { buildAlertEvent } from '../notifications/compose';
-import { dispatchNotification, type NotificationBudget } from '../notifications/dispatch';
-import { buildResultStatements } from './persist-result';
+import { dispatchRunNotifications, type NotificationBudget } from '../notifications/dispatch';
+import { persistScheduledResults } from './persist-result';
 import { runCheck, runCheckWithRetries, type RetryBudget } from './run-check';
 
-const MAX_MONITORS_PER_RUN = 40;
-const CONCURRENCY = 10;
-const MAX_BATCH_STATEMENTS = 100;
 /** Default retry ceiling for one scheduled run; override with the RETRY_ATTEMPTS_PER_RUN env var. */
 export const MAX_RETRY_ATTEMPTS_PER_RUN = DEFAULT_RUN_LIMITS.retryAttemptsPerRun;
-const RETRY_DEADLINE_MS = 90_000;
+const RETRY_DEADLINE_MS = 45_000;
 
 export type DueCheckSummary = {
 	checked: number;
@@ -29,8 +26,10 @@ export type DueCheckSummary = {
 export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitUntil'>): Promise<DueCheckSummary> {
 	const db = getDb(env);
 	const now = Date.now();
-	const due = await db
-		.select()
+	const limits = resolveRunLimits(env);
+	const { maxMonitorsPerRun, concurrency } = resolveCheckRunConfig(env);
+	const dueIds = db
+		.select({ id: monitors.id })
 		.from(monitors)
 		.where(
 			and(
@@ -39,10 +38,16 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 			),
 		)
 		.orderBy(sql`${monitors.lastCheckedAt} ASC NULLS FIRST`)
-		.limit(MAX_MONITORS_PER_RUN);
+		.limit(maxMonitorsPerRun);
+	// Claim and return due monitors in one SQLite statement. Concurrent cron invocations serialize
+	// this write, so a later invocation sees the claimed timestamp and cannot run the same monitor.
+	const due = await db
+		.update(monitors)
+		.set({ lastCheckedAt: new Date(now) })
+		.where(inArray(monitors.id, dueIds))
+		.returning();
 
 	if (due.length === 0) return { checked: 0, up: 0, down: 0, pending: 0, opened: 0, retries: 0, events: [] };
-	const limits = resolveRunLimits(env);
 	const [activeMaintenance, [settings]] = await Promise.all([
 		loadActiveMaintenance(db, new Date()),
 		db.select().from(aiSettings).where(eq(aiSettings.id, 1)).limit(1),
@@ -56,8 +61,8 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		maintenance: boolean;
 	}> = [];
 
-	for (let offset = 0; offset < due.length; offset += CONCURRENCY) {
-		const batch = due.slice(offset, offset + CONCURRENCY);
+	for (let offset = 0; offset < due.length; offset += concurrency) {
+		const batch = due.slice(offset, offset + concurrency);
 		const results = await Promise.all(
 			batch.map(async (monitor) => {
 				const maintenance = activeMaintenance.has(monitor.id);
@@ -69,39 +74,29 @@ export async function runDueChecks(env: Env, ctx?: Pick<ExecutionContext, 'waitU
 		completed.push(...results);
 	}
 
-	const persisted = completed.map(({ monitor, result, checkedAt, maintenance }) => ({
-		monitor,
-		result,
-		checkedAt,
-		...buildResultStatements(db, monitor, result, checkedAt, maintenance, {
-			degradedIncidents: Boolean(settings?.autopilotEnabled && settings.autopilotDegradedIncidents),
-		}),
-	}));
-	let statementChunk: (typeof persisted)[number]['statements'] = [];
-	for (const item of persisted) {
-		if (statementChunk.length > 0 && statementChunk.length + item.statements.length > MAX_BATCH_STATEMENTS) {
-			await db.batch(statementChunk as [(typeof statementChunk)[number], ...typeof statementChunk]);
-			statementChunk = [];
-		}
-		statementChunk.push(...item.statements);
-	}
-	if (statementChunk.length > 0) await db.batch(statementChunk as [(typeof statementChunk)[number], ...typeof statementChunk]);
+	const persisted = await persistScheduledResults(env, completed, {
+		degradedIncidents: Boolean(settings?.autopilotEnabled && settings.autopilotDegradedIncidents),
+	});
 
 	const notificationBudget: NotificationBudget = { remaining: limits.notificationsPerRun };
-	const notifications = persisted.flatMap((item) => {
-		const work: Promise<unknown>[] = [];
+	const notificationEvents = persisted.flatMap((item) => {
+		const events = [];
 		if (item.transition === 'opened' || item.transition === 'resolved') {
-			work.push(dispatchNotification(env, buildAlertEvent(item.monitor, item.result, item.transition, item.checkedAt), notificationBudget));
+			events.push({
+				event: buildAlertEvent(item.monitor, item.result, item.transition, item.checkedAt),
+				monitorAlertsEnabled: item.monitor.alertsEnabled,
+			});
 		}
 		if (item.latencyTransition) {
-			work.push(
-				dispatchNotification(env, buildAlertEvent(item.monitor, item.result, item.latencyTransition, item.checkedAt), notificationBudget),
-			);
+			events.push({
+				event: buildAlertEvent(item.monitor, item.result, item.latencyTransition, item.checkedAt),
+				monitorAlertsEnabled: item.monitor.alertsEnabled,
+			});
 		}
-		return work;
+		return events;
 	});
-	if (notifications.length > 0) {
-		const notificationWork = Promise.all(notifications).then(() => undefined);
+	if (notificationEvents.length > 0) {
+		const notificationWork = dispatchRunNotifications(env, notificationEvents, notificationBudget);
 		if (ctx) ctx.waitUntil(notificationWork);
 		else await notificationWork;
 	}

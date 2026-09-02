@@ -15,6 +15,7 @@ export const MAX_NOTIFICATIONS_PER_RUN = 40;
 export type NotificationBudget = { remaining: number };
 
 type DeliveryResult = { ok: boolean; statusCode: number | null; error: string | null; attempts: number };
+type RunNotification = { event: NotificationEvent; monitorAlertsEnabled: boolean };
 
 function isChannelType(value: string): value is ChannelType {
 	return CHANNEL_TYPES.some((type) => type === value);
@@ -64,6 +65,137 @@ async function persistDeliveries(env: Env, event: NotificationEvent, results: Ar
 		}),
 	);
 	await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
+}
+
+async function persistRunDeliveries(
+	env: Env,
+	rows: Array<{ event: NotificationEvent; channelId: number; result: DeliveryResult }>,
+): Promise<void> {
+	if (rows.length === 0) return;
+	const createdAt = Date.now();
+	await env.DB.prepare(
+		`INSERT INTO notification_deliveries
+		 (channel_id, incident_id, monitor_id, event, ok, status_code, error, attempts, created_at)
+		 SELECT json_extract(value, '$.channelId'), json_extract(value, '$.incidentId'), json_extract(value, '$.monitorId'),
+		        json_extract(value, '$.event'), json_extract(value, '$.ok'), json_extract(value, '$.statusCode'),
+		        json_extract(value, '$.error'), json_extract(value, '$.attempts'), ?2
+		 FROM json_each(?1)`,
+	)
+		.bind(
+			JSON.stringify(
+				rows.map(({ event, channelId, result }) => ({
+					channelId,
+					incidentId: event.incidentId,
+					monitorId: event.monitor?.id ?? null,
+					event: event.kind,
+					ok: result.ok ? 1 : 0,
+					statusCode: result.statusCode,
+					error: result.error,
+					attempts: result.attempts,
+				})),
+			),
+			createdAt,
+		)
+		.run();
+}
+
+function invalidDelivery(error: unknown): DeliveryResult {
+	return {
+		ok: false,
+		statusCode: null,
+		error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+		attempts: 0,
+	};
+}
+
+/** Routes all scheduled-run events from one channel snapshot and persists deliveries once. */
+export async function dispatchRunNotifications(env: Env, inputs: RunNotification[], budget: NotificationBudget): Promise<void> {
+	const events = inputs.filter((input) => input.monitorAlertsEnabled && input.event.monitor);
+	if (events.length === 0) return;
+	const db = getDb(env);
+	const channels = await db.select().from(notificationChannels).where(eq(notificationChannels.enabled, true));
+	if (channels.length === 0) return;
+	const assignments = await db
+		.select()
+		.from(notificationChannelMonitors)
+		.where(
+			inArray(
+				notificationChannelMonitors.channelId,
+				channels.map((channel) => channel.id),
+			),
+		);
+	const monitorIdsByChannel = new Map<number, Set<number>>();
+	for (const assignment of assignments) {
+		let monitorIds = monitorIdsByChannel.get(assignment.channelId);
+		if (!monitorIds) {
+			monitorIds = new Set<number>();
+			monitorIdsByChannel.set(assignment.channelId, monitorIds);
+		}
+		monitorIds.add(assignment.monitorId);
+	}
+
+	const downEvents = events.filter(({ event }) => event.kind === 'down' || event.kind === 'recovered');
+	const incidentByMonitorAndState = new Map<string, number>();
+	if (downEvents.length > 0) {
+		const monitorIds = [...new Set(downEvents.map(({ event }) => event.monitor!.id))];
+		const incidents = await env.DB.prepare(
+			`SELECT im.monitor_id, i.id, CASE WHEN i.resolved_at IS NULL THEN 0 ELSE 1 END AS resolved
+			 FROM incident_monitors im JOIN incidents i ON i.id = im.incident_id
+			 JOIN json_each(?1) targets ON im.monitor_id = targets.value
+			 WHERE i.source = 'auto' AND i.kind = 'down'
+			 ORDER BY i.started_at DESC`,
+		)
+			.bind(JSON.stringify(monitorIds))
+			.all<{ monitor_id: number; id: number; resolved: number }>();
+		for (const incident of incidents.results) {
+			const key = `${incident.monitor_id}:${incident.resolved}`;
+			if (!incidentByMonitorAndState.has(key)) incidentByMonitorAndState.set(key, incident.id);
+		}
+	}
+
+	const work: Array<{ event: NotificationEvent; channel: (typeof channels)[number] }> = [];
+	for (const { event } of events) {
+		const effectiveEvent =
+			event.monitor && (event.kind === 'down' || event.kind === 'recovered')
+				? {
+						...event,
+						incidentId: incidentByMonitorAndState.get(`${event.monitor.id}:${event.kind === 'recovered' ? 1 : 0}`) ?? null,
+					}
+				: event;
+		for (const channel of channels) {
+			const monitorIds = monitorIdsByChannel.get(channel.id);
+			if (!monitorIds || monitorIds.size === 0 || monitorIds.has(event.monitor!.id)) work.push({ event: effectiveEvent, channel });
+		}
+	}
+
+	const available = Math.max(0, budget.remaining);
+	const sendable = work.slice(0, available);
+	budget.remaining -= sendable.length;
+	const skipped = work.slice(sendable.length).map(({ event, channel }) => ({
+		event,
+		channelId: channel.id,
+		result: { ok: false, statusCode: null, error: 'skipped: per-run limit', attempts: 0 } satisfies DeliveryResult,
+	}));
+	const settled = await Promise.allSettled(
+		sendable.map(async ({ event, channel }) => {
+			if (!isChannelType(channel.type)) throw new Error(`Unsupported channel type: ${channel.type}`);
+			let rawConfig: unknown;
+			try {
+				rawConfig = JSON.parse(channel.config);
+			} catch {
+				throw new Error('Invalid stored channel configuration');
+			}
+			const config = parseChannelConfig(channel.type, rawConfig);
+			if (typeof config === 'string') throw new Error(config);
+			return { event, channelId: channel.id, result: await sendRequest(formatChannel(channel.type, config, event)) };
+		}),
+	);
+	const delivered = settled.map((result, index) =>
+		result.status === 'fulfilled'
+			? result.value
+			: { event: sendable[index].event, channelId: sendable[index].channel.id, result: invalidDelivery(result.reason) },
+	);
+	await persistRunDeliveries(env, [...delivered, ...skipped]);
 }
 
 export async function dispatchNotification(env: Env, event: NotificationEvent, budget?: NotificationBudget): Promise<void> {

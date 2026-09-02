@@ -2,7 +2,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { requestCompletionDetailed, type CompletionResult } from '../ai/client';
 import { DEGRADED_RECOVERY_UPDATE_BODY, RECOVERY_UPDATE_BODY } from '../ai/fallback-message';
 import { buildIncidentContext } from '../ai/incident-context';
-import { recordAiEvent, type AiEventKind } from '../ai/events';
+import { recordAiEvent, recordAiEvents, type AiEventInput, type AiEventKind } from '../ai/events';
 import {
 	AUTOPILOT_STATUS_GUIDANCE,
 	INCIDENT_FOLLOWUP_SYSTEM_PROMPT,
@@ -21,7 +21,7 @@ import { loadIncidentSignal, findLatestAutoIncidentForMonitor } from './signal';
 // Per-pass ceilings come from resolveRunLimits(env): AI_CALLS_PER_RUN / AI_FOLLOWUP_CALLS_PER_RUN,
 // defaulting to DEFAULT_RUN_LIMITS. They keep one autopilot pass within the free-plan subrequest budget.
 export const AUTOPILOT_CONCURRENCY = 4;
-export const AUTOPILOT_DEADLINE_MS = 45_000;
+export const AUTOPILOT_DEADLINE_MS = 30_000;
 
 export type AiBudget = { remaining: number; deadline?: number };
 export type AutopilotEvent = {
@@ -35,6 +35,7 @@ export type AutopilotSummary = { calls: number; written: number; rejected: numbe
 
 type Settings = typeof aiSettings.$inferSelect;
 type Task = { kind: AiEventKind; incidentId: number; monitorId: number; run: () => Promise<boolean> };
+type SignalLoader = (incidentId: number) => ReturnType<typeof loadIncidentSignal>;
 
 function completionEvent(result: CompletionResult) {
 	return {
@@ -77,11 +78,18 @@ async function writeCasUpdate(
 	return Number(results[0].meta.changes ?? 0) === 1 && Number(results[1].meta.changes ?? 0) === 1;
 }
 
-async function processOpening(env: Env, settings: Settings, event: AutopilotEvent, incidentId: number, kind: 'down' | 'degraded') {
+async function processOpening(
+	env: Env,
+	settings: Settings,
+	event: AutopilotEvent,
+	incidentId: number,
+	kind: 'down' | 'degraded',
+	loadSignal: SignalLoader,
+) {
 	const db = getDb(env);
 	const [incident] = await db.select().from(incidents).where(eq(incidents.id, incidentId)).limit(1);
 	if (!incident || incident.resolvedAt || incident.source !== 'auto') return false;
-	const signal = await loadIncidentSignal(db, incident.id);
+	const signal = await loadSignal(incident.id);
 	if (!signal) return false;
 	const context = await buildIncidentContext(db, event.monitor, event.result);
 	const result = await complete(settings, INCIDENT_OPEN_SYSTEM_PROMPT, context, 220);
@@ -183,9 +191,8 @@ async function processResolution(env: Env, settings: Settings, event: AutopilotE
 	return wrote;
 }
 
-async function processFollowup(env: Env, settings: Settings, incident: typeof incidents.$inferSelect) {
-	const db = getDb(env);
-	const signal = await loadIncidentSignal(db, incident.id);
+async function processFollowup(env: Env, settings: Settings, incident: typeof incidents.$inferSelect, loadSignal: SignalLoader) {
+	const signal = await loadSignal(incident.id);
 	if (!signal) return false;
 	const status = settings.autopilotAdvanceStatus
 		? advanceStatus(incident.status as AutopilotIncidentStatus, signal)
@@ -214,7 +221,7 @@ async function processFollowup(env: Env, settings: Settings, incident: typeof in
 	return wrote;
 }
 
-async function loadFollowupTasks(env: Env, settings: Settings, excluded: Set<number>): Promise<Task[]> {
+async function loadFollowupTasks(env: Env, settings: Settings, excluded: Set<number>, loadSignal: SignalLoader): Promise<Task[]> {
 	const db = getDb(env);
 	const maxFollowups = resolveRunLimits(env).aiFollowupCallsPerRun;
 	const rows = await db
@@ -256,15 +263,15 @@ async function loadFollowupTasks(env: Env, settings: Settings, excluded: Set<num
 		}
 		const count = Number(row.autoUpdateCount);
 		if (count >= settings.autopilotMaxUpdates) continue;
-		const last = row.lastUpdateAt instanceof Date ? row.lastUpdateAt.getTime() : Number(row.lastUpdateAt);
+		const last = Number(row.lastUpdateAt);
 		if (Date.now() < nextFollowupDueAt(last, count, settings.autopilotFollowupMinutes)) continue;
-		const signal = await loadIncidentSignal(db, row.incident.id);
+		const signal = await loadSignal(row.incident.id);
 		if (!signal?.monitor.alertsEnabled) continue;
 		tasks.push({
 			kind: 'incident_followup',
 			incidentId: row.incident.id,
 			monitorId: signal.monitor.id,
-			run: () => processFollowup(env, settings, row.incident),
+			run: () => processFollowup(env, settings, row.incident, loadSignal),
 		});
 		if (tasks.length >= maxFollowups) break;
 	}
@@ -281,6 +288,15 @@ export async function runAutopilot(
 	if (!settings?.enabled || !settings.autopilotEnabled || !settings.baseUrl || !settings.apiKey || !settings.model) return summary;
 	const budget = input.budget ?? { remaining: resolveRunLimits(env).aiCallsPerRun, deadline: Date.now() + AUTOPILOT_DEADLINE_MS };
 	budget.deadline ??= Date.now() + AUTOPILOT_DEADLINE_MS;
+	const signalCache = new Map<number, ReturnType<typeof loadIncidentSignal>>();
+	const loadSignal: SignalLoader = (incidentId) => {
+		let signal = signalCache.get(incidentId);
+		if (!signal) {
+			signal = loadIncidentSignal(db, incidentId);
+			signalCache.set(incidentId, signal);
+		}
+		return signal;
+	};
 	const tasks: Task[] = [];
 	const excluded = new Set<number>();
 	for (const event of input.events ?? []) {
@@ -293,7 +309,7 @@ export async function runAutopilot(
 					kind: 'incident_open',
 					incidentId: incident.id,
 					monitorId: event.monitor.id,
-					run: () => processOpening(env, settings, event, incident.id, 'down'),
+					run: () => processOpening(env, settings, event, incident.id, 'down', loadSignal),
 				});
 			}
 		}
@@ -316,7 +332,7 @@ export async function runAutopilot(
 					kind: 'degraded_open',
 					incidentId: incident.id,
 					monitorId: event.monitor.id,
-					run: () => processOpening(env, settings, event, incident.id, 'degraded'),
+					run: () => processOpening(env, settings, event, incident.id, 'degraded', loadSignal),
 				});
 			}
 		}
@@ -332,7 +348,7 @@ export async function runAutopilot(
 			}
 		}
 	}
-	if (!input.skipSweep) tasks.push(...(await loadFollowupTasks(env, settings, excluded)));
+	if (!input.skipSweep && budget.remaining > tasks.length) tasks.push(...(await loadFollowupTasks(env, settings, excluded, loadSignal)));
 	const priority: Record<AiEventKind, number> = {
 		incident_open: 0,
 		incident_resolve: 1,
@@ -343,13 +359,14 @@ export async function runAutopilot(
 	};
 	tasks.sort((left, right) => priority[left.kind] - priority[right.kind]);
 
+	const skippedEvents: AiEventInput[] = [];
 	for (let offset = 0; offset < tasks.length; offset += AUTOPILOT_CONCURRENCY) {
 		const batch = tasks.slice(offset, offset + AUTOPILOT_CONCURRENCY);
 		await Promise.all(
 			batch.map(async (task) => {
 				if (budget.remaining <= 0 || Date.now() >= budget.deadline!) {
 					summary.skipped += 1;
-					await recordAiEvent(env, {
+					skippedEvents.push({
 						kind: task.kind,
 						incidentId: task.incidentId,
 						monitorId: task.monitorId,
@@ -377,5 +394,6 @@ export async function runAutopilot(
 			}),
 		);
 	}
+	await recordAiEvents(env, skippedEvents);
 	return summary;
 }

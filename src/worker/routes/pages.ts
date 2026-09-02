@@ -4,7 +4,7 @@ import { resolveStatusCacheSeconds } from '../lib/runtime-config';
 import { rewriteHead } from '../seo/html';
 import { absoluteBase, escapeHtml, incidentHead, statusHead } from '../seo/meta';
 
-type AppFetch = (request: Request, env: Env, executionCtx: ExecutionContext) => Response | Promise<Response>;
+type AppFetch = (request: Request, env: Env, executionCtx: Context<{ Bindings: Env }>['executionCtx']) => Response | Promise<Response>;
 type EdgeCache = {
 	match(request: RequestInfo | URL): Promise<Response | undefined>;
 	put(request: RequestInfo | URL, response: Response): Promise<void>;

@@ -10,7 +10,7 @@ export default defineConfig({
 			miniflare: {
 				// STATUS_CACHE_SECONDS '0' disables the public-status edge cache so assertions see
 				// fresh D1 reads instead of a response cached by an earlier test.
-				bindings: { TEST_MIGRATIONS: migrations, STATUS_CACHE_SECONDS: '0' },
+				bindings: { TEST_MIGRATIONS: migrations, STATUS_CACHE_SECONDS: '0', PUBLIC_BASE_URL: '' },
 			},
 		}),
 	],

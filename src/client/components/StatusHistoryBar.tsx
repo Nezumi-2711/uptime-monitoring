@@ -73,7 +73,7 @@ export function StatusHistoryBar({ history }: { history: HistoryEntry[] }) {
 							startDay === endDay
 								? dayTitle(startDay, uptimePct)
 								: `${formatDay(startDay)} – ${formatDay(endDay)}: ${
-										uptimePct === undefined ? 'No data' : `${uptimePct.toFixed(1)}% average uptime`
+										uptimePct == null ? 'No data' : `${uptimePct.toFixed(1)}% average uptime`
 									}`
 						}
 					/>

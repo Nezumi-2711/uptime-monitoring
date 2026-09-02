@@ -32,12 +32,12 @@ export async function cleanupExpiredAuthRecords(env: Env) {
  * so the delete only scans the expiring slice, and running daily keeps that scan to ~one day
  * of rows.
  */
-export async function cleanupStaleData(env: Env) {
+export async function cleanupStaleData(env: Env, now = new Date()) {
 	const db = getDb(env);
-	const now = new Date();
+	const checkCutoff = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - CHECK_RETENTION_MS;
 
 	await db.batch([
-		db.delete(checks).where(lt(checks.checkedAt, new Date(now.getTime() - CHECK_RETENTION_MS))),
+		db.delete(checks).where(lt(checks.checkedAt, new Date(checkCutoff))),
 		db.delete(monitorDailyStats).where(lt(monitorDailyStats.day, new Date(now.getTime() - DAILY_STATS_RETENTION_MS))),
 		db.delete(notificationDeliveries).where(lt(notificationDeliveries.createdAt, new Date(now.getTime() - DELIVERY_RETENTION_MS))),
 		db.delete(aiEvents).where(lt(aiEvents.createdAt, new Date(now.getTime() - AI_EVENT_RETENTION_MS))),

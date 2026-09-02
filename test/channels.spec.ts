@@ -1,7 +1,7 @@
 import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dispatchNotification } from '../src/worker/notifications/dispatch';
+import { dispatchNotification, dispatchRunNotifications } from '../src/worker/notifications/dispatch';
 import { discordProvider, slackProvider, telegramProvider, webhookProvider } from '../src/worker/notifications/providers';
 import { parseChannelInput } from '../src/worker/routes/channels';
 
@@ -108,6 +108,35 @@ describe('notification channels', () => {
 			attempts: number;
 		}>();
 		expect(delivery).toEqual({ ok: 1, status_code: 204, attempts: 2 });
+	});
+
+	it('routes a scheduled event batch and writes all delivery rows together', async () => {
+		await insertChannel('All services', '{"url":"https://hooks.example.test/events"}');
+		const assignedChannel = await insertChannel('API only', '{"url":"https://hooks.example.test/api"}');
+		await env.DB.prepare('INSERT INTO notification_channel_monitors (channel_id, monitor_id) VALUES (?, 7)').bind(assignedChannel).run();
+		const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		await dispatchRunNotifications(
+			env,
+			[
+				{ event, monitorAlertsEnabled: true },
+				{ event: { ...event, kind: 'recovered', title: 'API recovered' }, monitorAlertsEnabled: true },
+			],
+			{ remaining: 3 },
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		const deliveries = await env.DB.prepare('SELECT event, ok FROM notification_deliveries ORDER BY id').all<{
+			event: string;
+			ok: number;
+		}>();
+		expect(deliveries.results).toEqual([
+			{ event: 'down', ok: 1 },
+			{ event: 'down', ok: 1 },
+			{ event: 'recovered', ok: 1 },
+			{ event: 'recovered', ok: 0 },
+		]);
 	});
 
 	it('does not retry a 400 response', async () => {

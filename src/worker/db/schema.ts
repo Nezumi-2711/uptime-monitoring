@@ -47,44 +47,40 @@ export const loginAttempts = sqliteTable(
 	],
 );
 
-export const monitors = sqliteTable(
-	'monitors',
-	{
-		id: integer('id').primaryKey({ autoIncrement: true }),
-		name: text('name').notNull(),
-		url: text('url').notNull(),
-		method: text('method').notNull().default('GET'),
-		expectedStatus: integer('expected_status').notNull().default(200),
-		expectKeyword: text('expect_keyword'),
-		keywordInverted: integer('keyword_inverted', { mode: 'boolean' }).notNull().default(false),
-		requestHeaders: text('request_headers'),
-		requestBody: text('request_body'),
-		degradedLatencyMs: integer('degraded_latency_ms'),
-		intervalSeconds: integer('interval_seconds').notNull().default(300),
-		timeoutMs: integer('timeout_ms').notNull().default(10_000),
-		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
-		alertsEnabled: integer('alerts_enabled', { mode: 'boolean' }).notNull().default(true),
-		/** Number of immediate retries after a failed attempt. Zero disables retries. */
-		retryCount: integer('retry_count').notNull().default(1),
-		/** Consecutive failed checks required before confirming an outage. */
-		failureThreshold: integer('failure_threshold').notNull().default(2),
-		/** Failures since the last successful check. Maintenance checks do not change this value. */
-		consecutiveFailures: integer('consecutive_failures').notNull().default(0),
-		/** Slow successful checks since latency last recovered. Maintenance checks do not change this value. */
-		consecutiveSlow: integer('consecutive_slow').notNull().default(0),
-		/** Confirmed state, not the raw latest result. */
-		lastOk: integer('last_ok', { mode: 'boolean' }),
-		/** Confirmed degraded state. A down monitor is never degraded. */
-		lastDegraded: integer('last_degraded', { mode: 'boolean' }).notNull().default(false),
-		lastStatusCode: integer('last_status_code'),
-		lastLatencyMs: integer('last_latency_ms'),
-		lastError: text('last_error'),
-		lastCheckedAt: integer('last_checked_at', { mode: 'timestamp_ms' }),
-		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-	},
-	(table) => [index('monitors_enabled_last_checked_at_idx').on(table.enabled, table.lastCheckedAt)],
-);
+export const monitors = sqliteTable('monitors', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name').notNull(),
+	url: text('url').notNull(),
+	method: text('method').notNull().default('GET'),
+	expectedStatus: integer('expected_status').notNull().default(200),
+	expectKeyword: text('expect_keyword'),
+	keywordInverted: integer('keyword_inverted', { mode: 'boolean' }).notNull().default(false),
+	requestHeaders: text('request_headers'),
+	requestBody: text('request_body'),
+	degradedLatencyMs: integer('degraded_latency_ms'),
+	intervalSeconds: integer('interval_seconds').notNull().default(300),
+	timeoutMs: integer('timeout_ms').notNull().default(10_000),
+	enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+	alertsEnabled: integer('alerts_enabled', { mode: 'boolean' }).notNull().default(true),
+	/** Number of immediate retries after a failed attempt. Zero disables retries. */
+	retryCount: integer('retry_count').notNull().default(1),
+	/** Consecutive failed checks required before confirming an outage. */
+	failureThreshold: integer('failure_threshold').notNull().default(2),
+	/** Failures since the last successful check. Maintenance checks do not change this value. */
+	consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+	/** Slow successful checks since latency last recovered. Maintenance checks do not change this value. */
+	consecutiveSlow: integer('consecutive_slow').notNull().default(0),
+	/** Confirmed state, not the raw latest result. */
+	lastOk: integer('last_ok', { mode: 'boolean' }),
+	/** Confirmed degraded state. A down monitor is never degraded. */
+	lastDegraded: integer('last_degraded', { mode: 'boolean' }).notNull().default(false),
+	lastStatusCode: integer('last_status_code'),
+	lastLatencyMs: integer('last_latency_ms'),
+	lastError: text('last_error'),
+	lastCheckedAt: integer('last_checked_at', { mode: 'timestamp_ms' }),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
 
 export const maintenanceWindows = sqliteTable(
 	'maintenance_windows',
@@ -134,8 +130,6 @@ export const checks = sqliteTable(
 	},
 	(table) => [
 		index('checks_monitor_id_checked_at_idx').on(table.monitorId, table.checkedAt),
-		// Daily rollup and retention cleanup scan by checked_at across every monitor; without this
-		// index those become full-table scans, which dominate D1 "rows read" at scale.
 		index('checks_checked_at_idx').on(table.checkedAt),
 	],
 );

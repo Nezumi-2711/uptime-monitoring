@@ -64,4 +64,36 @@ describe('daily monitor rollups', () => {
 			max_latency_ms: 300,
 		});
 	});
+
+	it('rolls up checks correctly when ids and timestamps are out of order', async () => {
+		const createdAt = Date.parse('2026-08-28T00:05:00Z');
+		const inserted = await env.DB.prepare(
+			"INSERT INTO monitors (name, url, method, expected_status, interval_seconds, timeout_ms, enabled, alerts_enabled, created_at, updated_at) VALUES ('API', 'https://example.com', 'GET', 200, 300, 10000, 1, 1, ?, ?)",
+		)
+			.bind(createdAt, createdAt)
+			.run();
+		const monitorId = Number(inserted.meta.last_row_id);
+		// The newer timestamp deliberately receives the lower primary key.
+		await env.DB.batch([
+			env.DB.prepare('INSERT INTO checks (monitor_id, ok, latency_ms, checked_at) VALUES (?, 1, 100, ?)').bind(
+				monitorId,
+				Date.parse('2026-08-28T12:00:00Z'),
+			),
+			env.DB.prepare('INSERT INTO checks (monitor_id, ok, latency_ms, checked_at) VALUES (?, 0, 300, ?)').bind(
+				monitorId,
+				Date.parse('2026-08-27T12:00:00Z'),
+			),
+		]);
+
+		await runDailyRollup(env, new Date('2026-08-28T00:05:00Z'));
+		await runDailyRollup(env, new Date('2026-08-29T00:05:00Z'));
+
+		const rows = await env.DB.prepare('SELECT day, total_checks, up_checks FROM monitor_daily_stats WHERE monitor_id = ? ORDER BY day')
+			.bind(monitorId)
+			.all();
+		expect(rows.results).toEqual([
+			{ day: Date.parse('2026-08-27T00:00:00Z'), total_checks: 1, up_checks: 0 },
+			{ day: Date.parse('2026-08-28T00:00:00Z'), total_checks: 1, up_checks: 1 },
+		]);
+	});
 });

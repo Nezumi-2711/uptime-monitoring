@@ -15,7 +15,12 @@ export const channelKeys = {
 	deliveries: (id: number) => ['channels', id, 'deliveries'] as const,
 };
 export function useNotificationChannelsQuery() {
-	return useQuery({ queryKey: channelKeys.all, queryFn: ({ signal }) => getNotificationChannels(signal), refetchInterval: 30_000 });
+	return useQuery({
+		queryKey: channelKeys.all,
+		queryFn: ({ signal }) => getNotificationChannels(signal),
+		refetchInterval: 120_000,
+		refetchIntervalInBackground: false,
+	});
 }
 function invalidateChannels() {
 	return queryClient.invalidateQueries({ queryKey: channelKeys.all });

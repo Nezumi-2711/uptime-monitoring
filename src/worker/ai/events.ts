@@ -53,3 +53,42 @@ export async function recordAiEvent(env: Env, input: AiEventInput): Promise<void
 		console.warn(JSON.stringify({ message: 'AI event recording failed', error: error instanceof Error ? error.message : String(error) }));
 	}
 }
+
+export async function recordAiEvents(env: Env, inputs: AiEventInput[]): Promise<void> {
+	if (inputs.length === 0) return;
+	try {
+		await env.DB.prepare(
+			`INSERT INTO ai_events
+			 (kind, incident_id, monitor_id, model, outcome, reason, latency_ms, prompt_tokens, completion_tokens,
+			  context_preview, output_preview, created_at)
+			 SELECT json_extract(value, '$.kind'), json_extract(value, '$.incidentId'), json_extract(value, '$.monitorId'),
+			        json_extract(value, '$.model'), json_extract(value, '$.outcome'), json_extract(value, '$.reason'),
+			        json_extract(value, '$.latencyMs'), json_extract(value, '$.promptTokens'), json_extract(value, '$.completionTokens'),
+			        json_extract(value, '$.contextPreview'), json_extract(value, '$.outputPreview'), ?2
+			 FROM json_each(?1)`,
+		)
+			.bind(
+				JSON.stringify(
+					inputs.map((input) => ({
+						kind: input.kind,
+						incidentId: input.incidentId ?? null,
+						monitorId: input.monitorId ?? null,
+						model: input.model ?? null,
+						outcome: input.outcome,
+						reason: preview(input.reason)?.slice(0, 200) ?? null,
+						latencyMs: input.latencyMs ?? null,
+						promptTokens: input.promptTokens ?? null,
+						completionTokens: input.completionTokens ?? null,
+						contextPreview: preview(input.contextPreview),
+						outputPreview: preview(input.outputPreview),
+					})),
+				),
+				Date.now(),
+			)
+			.run();
+	} catch (error) {
+		console.warn(
+			JSON.stringify({ message: 'AI event batch recording failed', error: error instanceof Error ? error.message : String(error) }),
+		);
+	}
+}

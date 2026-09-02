@@ -14,7 +14,7 @@ export function useMaintenanceWindowsQuery() {
 	return useQuery({
 		queryKey: maintenanceKeys.all,
 		queryFn: ({ signal }) => getMaintenanceWindows(signal),
-		refetchInterval: 60_000,
+		refetchInterval: 300_000,
 		refetchIntervalInBackground: false,
 	});
 }

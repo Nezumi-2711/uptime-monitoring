@@ -20,7 +20,8 @@ export function useIncidentHistoryQuery() {
 	return useQuery({
 		queryKey: statusKeys.history,
 		queryFn: ({ signal }) => getIncidentHistory(signal),
-		refetchInterval: 60_000,
+		refetchInterval: 120_000,
+		refetchIntervalInBackground: false,
 	});
 }
 

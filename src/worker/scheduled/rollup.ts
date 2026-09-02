@@ -1,57 +1,33 @@
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
-import { getDb } from '../db/client';
-import { checks, monitorDailyStats } from '../db/schema';
-
 export type DailyRollupSummary = {
 	day: string;
 	monitors: number;
 };
 
 export async function runDailyRollup(env: Env, now = new Date()): Promise<DailyRollupSummary> {
-	const db = getDb(env);
 	const currentUtcDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-	const dayStart = new Date(currentUtcDay - 24 * 60 * 60 * 1000);
-	const dayEnd = new Date(currentUtcDay);
+	const dayStart = currentUtcDay - 24 * 60 * 60 * 1000;
+	const dayEnd = currentUtcDay;
+	const count = await env.DB.prepare(
+		`SELECT count(DISTINCT monitor_id) AS count FROM checks
+		 WHERE checked_at >= ?1 AND checked_at < ?2 AND maintenance = 0`,
+	)
+		.bind(dayStart, dayEnd)
+		.first<{ count: number }>();
+	await env.DB.prepare(
+		`INSERT INTO monitor_daily_stats
+		 (monitor_id, day, total_checks, up_checks, avg_latency_ms, min_latency_ms, max_latency_ms)
+		 SELECT monitor_id, ?3, count(*), sum(CASE WHEN ok = 1 THEN 1 ELSE 0 END),
+		        round(avg(latency_ms)), min(latency_ms), max(latency_ms)
+		 FROM checks
+		 WHERE checked_at >= ?1 AND checked_at < ?2 AND maintenance = 0
+		 GROUP BY monitor_id
+		 ON CONFLICT(monitor_id, day) DO UPDATE SET
+		 total_checks = excluded.total_checks, up_checks = excluded.up_checks,
+		 avg_latency_ms = excluded.avg_latency_ms, min_latency_ms = excluded.min_latency_ms,
+		 max_latency_ms = excluded.max_latency_ms`,
+	)
+		.bind(dayStart, dayEnd, dayStart)
+		.run();
 
-	const rows = await db
-		.select({
-			monitorId: checks.monitorId,
-			totalChecks: sql<number>`count(*)`,
-			upChecks: sql<number>`sum(case when ${checks.ok} = 1 then 1 else 0 end)`,
-			avgLatencyMs: sql<number | null>`round(avg(${checks.latencyMs}))`,
-			minLatencyMs: sql<number | null>`min(${checks.latencyMs})`,
-			maxLatencyMs: sql<number | null>`max(${checks.latencyMs})`,
-		})
-		.from(checks)
-		.where(and(gte(checks.checkedAt, dayStart), lt(checks.checkedAt, dayEnd), eq(checks.maintenance, false)))
-		.groupBy(checks.monitorId);
-
-	if (rows.length > 0) {
-		const statements = rows.map((row) =>
-			db
-				.insert(monitorDailyStats)
-				.values({
-					monitorId: row.monitorId,
-					day: dayStart,
-					totalChecks: row.totalChecks,
-					upChecks: row.upChecks,
-					avgLatencyMs: row.avgLatencyMs,
-					minLatencyMs: row.minLatencyMs,
-					maxLatencyMs: row.maxLatencyMs,
-				})
-				.onConflictDoUpdate({
-					target: [monitorDailyStats.monitorId, monitorDailyStats.day],
-					set: {
-						totalChecks: row.totalChecks,
-						upChecks: row.upChecks,
-						avgLatencyMs: row.avgLatencyMs,
-						minLatencyMs: row.minLatencyMs,
-						maxLatencyMs: row.maxLatencyMs,
-					},
-				}),
-		);
-		await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
-	}
-
-	return { day: dayStart.toISOString().slice(0, 10), monitors: rows.length };
+	return { day: new Date(dayStart).toISOString().slice(0, 10), monitors: Number(count?.count ?? 0) };
 }

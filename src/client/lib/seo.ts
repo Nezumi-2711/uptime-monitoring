@@ -15,7 +15,7 @@ function upsertMeta(selector: string, attributes: Record<string, string>, conten
 	if (!element) {
 		element = document.createElement('meta');
 		for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
-		document.head.append(element);
+		document.head.appendChild(element);
 	}
 	element.setAttribute('content', content);
 	element.setAttribute(managedAttribute, 'true');
@@ -53,7 +53,7 @@ export function useSeo({ title, description, noindex = false, canonicalPath }: S
 			if (!canonical) {
 				canonical = document.createElement('link');
 				canonical.rel = 'canonical';
-				document.head.append(canonical);
+				document.head.appendChild(canonical);
 			}
 			canonical.href = absoluteUrl(canonicalPath);
 			canonical.setAttribute(managedAttribute, 'true');

@@ -21,7 +21,12 @@ export const incidentKeys = {
 	detail: (id: number) => [...incidentKeys.all, 'detail', id] as const,
 };
 export function useIncidentsQuery(status: 'open' | 'all' = 'open') {
-	return useQuery({ queryKey: incidentKeys.list(status), queryFn: ({ signal }) => listIncidents(status, signal), refetchInterval: 60_000 });
+	return useQuery({
+		queryKey: incidentKeys.list(status),
+		queryFn: ({ signal }) => listIncidents(status, signal),
+		refetchInterval: 120_000,
+		refetchIntervalInBackground: false,
+	});
 }
 export function useIncidentQuery(id: number) {
 	return useQuery({ queryKey: incidentKeys.detail(id), queryFn: ({ signal }) => getIncident(id, signal) });

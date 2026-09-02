@@ -173,6 +173,19 @@ describe('monitor API', () => {
 		expect(list.monitors[0]).toMatchObject({ id: created.monitor.id, url: 'https://example.com/health' });
 	});
 
+	it('jitters a new monitor across its first interval', async () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		const before = Date.now();
+		const created = await (
+			await createMonitor(await authenticatedCookie(), { intervalSeconds: 600 })
+		).json<{
+			monitor: { lastCheckedAt: string };
+		}>();
+		const lastCheckedAt = Date.parse(created.monitor.lastCheckedAt);
+		expect(lastCheckedAt).toBeGreaterThanOrEqual(before - 301_000);
+		expect(lastCheckedAt).toBeLessThanOrEqual(Date.now() - 299_000);
+	});
+
 	it.each([
 		[{ url: 'file:///etc/passwd' }, 'Enter a valid http or https URL'],
 		[{ intervalSeconds: 60 }, 'intervalSeconds must be an integer between 300 and 86400'],
@@ -349,7 +362,7 @@ describe('monitor API', () => {
 		expect(stats.windows['24h']).toEqual({ uptimePct: 50, totalChecks: 2, upChecks: 1, avgLatencyMs: 200, incidentCount: 1 });
 	});
 
-	it('combines daily rollups with the current partial day for long-range stats', async () => {
+	it('combines daily rollups with the current partial day for seven-day and long-range stats', async () => {
 		const cookie = await authenticatedCookie();
 		const created = await (await createMonitor(cookie)).json<{ monitor: { id: number } }>();
 		const id = created.monitor.id;
@@ -371,8 +384,14 @@ describe('monitor API', () => {
 
 		const response = await apiFetch(`/api/monitors/${id}/stats`, 'GET', cookie);
 		const stats = await response.json<{
-			windows: { '30d': { uptimePct: number; totalChecks: number; upChecks: number; avgLatencyMs: number } };
+			windows: Record<'7d' | '30d', { uptimePct: number; totalChecks: number; upChecks: number; avgLatencyMs: number }>;
 		}>();
+		expect(stats.windows['7d']).toMatchObject({
+			uptimePct: 80,
+			totalChecks: 10,
+			upChecks: 8,
+			avgLatencyMs: 120,
+		});
 		expect(stats.windows['30d']).toMatchObject({
 			uptimePct: 80,
 			totalChecks: 10,

@@ -321,6 +321,8 @@ statusRoutes.get('/incidents', async (context) => {
 });
 
 statusRoutes.get('/incidents/:id', async (context) => {
+	const cached = await cachedStatusResponse(context);
+	if (cached) return cached;
 	const id = parseId(context.req.param('id'));
 	if (id === null) return context.json({ message: 'Incident not found' }, 404);
 	const db = getDb(context.env);
@@ -338,7 +340,7 @@ statusRoutes.get('/incidents/:id', async (context) => {
 		updates.length > 0
 			? updates
 			: [{ status: incident.status, body: deterministicIncidentMessage(incident.startStatusCode), createdAt: incident.startedAt }];
-	return context.json({
+	return jsonWithEdgeCache(context, {
 		incident: {
 			id: incident.id,
 			title: publicIncidentTitle(incident),

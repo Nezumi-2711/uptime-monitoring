@@ -13,7 +13,7 @@ export const DEFAULT_MONITOR_INPUT: MonitorInput = {
 	url: 'https://',
 	method: 'GET',
 	expectedStatus: 200,
-	intervalSeconds: 300,
+	intervalSeconds: 900,
 	timeoutMs: 10_000,
 	retryCount: 1,
 	failureThreshold: 2,
@@ -28,6 +28,7 @@ export const DEFAULT_MONITOR_INPUT: MonitorInput = {
 
 export const INTERVAL_OPTIONS = [
 	{ value: '300', label: '5 minutes' },
+	{ value: '600', label: '10 minutes' },
 	{ value: '900', label: '15 minutes' },
 	{ value: '1800', label: '30 minutes' },
 	{ value: '3600', label: '1 hour' },
@@ -135,7 +136,7 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 					<p className="overline">Configuration</p>
 					<DialogTitle>{editing ? `Edit ${editing.name}` : 'Add a monitor'}</DialogTitle>
 					<DialogDescription>
-						Checks run at least every five minutes. Failures are retried immediately and must repeat before an incident is published.
+						Checks run on the selected interval. Failures are retried immediately and must repeat before an incident is published.
 					</DialogDescription>
 				</DialogHeader>
 				<form className="monitor-form" onSubmit={handleSubmit}>
@@ -275,7 +276,7 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 									maxLength={200}
 									placeholder="healthy"
 								/>
-								<small>Case-insensitive match within the first 256 KB of the response.</small>
+								<small>Case-insensitive match within the first 64 KB of the response.</small>
 							</label>
 							<div className="toggle-field advanced-inverted">
 								<Switch

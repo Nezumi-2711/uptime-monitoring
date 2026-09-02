@@ -85,6 +85,13 @@
       "when": 1788187390249,
       "tag": "0011_hard_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1788348540256,
+      "tag": "0012_free_tier_scale",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,10 @@ import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runAutopilot } from '../src/worker/autopilot';
+import { persistScheduledResults } from '../src/worker/checks/persist-result';
 import { MAX_RETRY_ATTEMPTS_PER_RUN, runDueChecks } from '../src/worker/checks/run-due-checks';
+import { getDb } from '../src/worker/db/client';
+import { monitors } from '../src/worker/db/schema';
 
 async function clearMonitoringTables() {
 	await env.DB.batch([
@@ -115,6 +118,35 @@ describe('scheduled monitor checks', () => {
 			.bind(id)
 			.first<{ count: number }>();
 		expect(checkCount?.count).toBe(1);
+	});
+
+	it('atomically claims monitors so overlapping runs do not check them twice', async () => {
+		await insertMonitor();
+		let releaseFetch!: () => void;
+		let markFetchStarted!: () => void;
+		const fetchStarted = new Promise<void>((resolve) => {
+			markFetchStarted = resolve;
+		});
+		const blockedFetch = new Promise<void>((resolve) => {
+			releaseFetch = resolve;
+		});
+		const fetchMock = vi.fn(async () => {
+			markFetchStarted();
+			await blockedFetch;
+			return new Response(null, { status: 200 });
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const firstRun = runDueChecks(env);
+		await fetchStarted;
+		const secondSummary = await runDueChecks(env);
+		releaseFetch();
+		const firstSummary = await firstRun;
+
+		expect(firstSummary.checked).toBe(1);
+		expect(secondSummary.checked).toBe(0);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect((await env.DB.prepare('SELECT count(*) AS count FROM checks').first<{ count: number }>())?.count).toBe(1);
 	});
 
 	it('passes a case-insensitive keyword assertion and sends configured request data', async () => {
@@ -422,6 +454,33 @@ describe('scheduled monitor checks', () => {
 		}>();
 		expect(assignments.results.map((row) => row.monitor_id)).toEqual([firstId, secondId]);
 		expect(new Set(assignments.results.map((row) => row.incident_id)).size).toBe(2);
+	});
+
+	it('does not associate opened incidents through colliding timestamps', async () => {
+		const firstId = await insertMonitor({ name: 'First', last_ok: 1, failure_threshold: 1 });
+		const secondId = await insertMonitor({ name: 'Second', last_ok: 1, failure_threshold: 1 });
+		const checkedAt = new Date('2026-09-02T12:00:00.000Z');
+		const existing = await env.DB.prepare(
+			"INSERT INTO incidents (status, impact, source, kind, started_at, created_at, updated_at) VALUES ('investigating', 'major', 'auto', 'down', ?, ?, ?)",
+		)
+			.bind(checkedAt.getTime(), checkedAt.getTime(), checkedAt.getTime())
+			.run();
+		const monitorRows = await getDb(env).select().from(monitors);
+		const byId = new Map(monitorRows.map((monitor) => [monitor.id, monitor]));
+		const result = { ok: false, degraded: false, statusCode: 503, latencyMs: 10, error: 'Unavailable', attempts: 1 };
+
+		await persistScheduledResults(env, [
+			{ monitor: byId.get(firstId)!, result, checkedAt, maintenance: false },
+			{ monitor: byId.get(secondId)!, result, checkedAt, maintenance: false },
+		]);
+
+		const assignments = await env.DB.prepare('SELECT incident_id, monitor_id FROM incident_monitors ORDER BY incident_id').all<{
+			incident_id: number;
+			monitor_id: number;
+		}>();
+		expect(assignments.results).toHaveLength(2);
+		expect(assignments.results.map((row) => row.monitor_id)).toEqual([firstId, secondId]);
+		expect(assignments.results.every((row) => row.incident_id !== Number(existing.meta.last_row_id))).toBe(true);
 	});
 
 	it('resolves the open incident on recovery', async () => {

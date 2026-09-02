@@ -60,7 +60,6 @@ export type CheckResult = {
 
 export type Check = {
 	id: number;
-	monitorId: number;
 	ok: boolean;
 	degraded: boolean;
 	statusCode: number | null;
