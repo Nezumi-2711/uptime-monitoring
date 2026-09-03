@@ -7,7 +7,16 @@ import { cn } from '@/lib/utils';
 function Card({ className, asChild = false, ...props }: React.ComponentProps<'div'> & { asChild?: boolean }) {
 	const Comp = asChild ? Slot.Root : 'div';
 
-	return <Comp data-slot="card" className={cn('flex flex-col rounded-[8px] border border-[#e3e3e3] bg-white', className)} {...props} />;
+	return (
+		<Comp
+			data-slot="card"
+			className={cn(
+				'flex flex-col rounded-[8px] border border-[#e3e3e3] bg-white text-(--ink) dark:border-white/10 dark:bg-[#111419]',
+				className,
+			)}
+			{...props}
+		/>
+	);
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {

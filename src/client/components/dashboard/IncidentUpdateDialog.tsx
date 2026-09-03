@@ -20,51 +20,58 @@ export function IncidentUpdateDialog({ incident, onClose }: { incident: Incident
 	}
 	return (
 		<Dialog open onOpenChange={(open) => !open && !post.isPending && onClose()}>
-			<DialogContent className="incident-dialog max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-2xl">
+			<DialogContent className="incident-dialog">
 				<DialogHeader>
 					<p className="overline">Incident update</p>
 					<DialogTitle>{incident.title ?? 'Service disruption'}</DialogTitle>
 					<DialogDescription>Publish the next update and advance the incident lifecycle.</DialogDescription>
 				</DialogHeader>
 				<form className="incident-form" onSubmit={submit}>
-					<div className="field">
-						<span id="update-status-label">Status</span>
-						<Select value={status} onValueChange={(value) => setStatus(value as IncidentStatus)}>
-							<SelectTrigger aria-labelledby="update-status-label">
-								<SelectValue>
-									<IncidentStatusOption value={status} />
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent>
-								{INCIDENT_STATUSES.map((value) => (
-									<SelectItem key={value} value={value}>
-										<IncidentStatusOption value={value} />
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					<AiComposeField
-						note={note}
-						body={body}
-						onNoteChange={setNote}
-						onBodyChange={setBody}
-						onGenerate={() =>
-							draft.mutate(
-								{ note, status },
-								{
-									onSuccess: (result) => {
-										setBody(result.body);
-										setGenerated(true);
+					<div className="incident-form-body">
+						<div className="field incident-update-status">
+							<span id="update-status-label">Status</span>
+							<Select value={status} onValueChange={(value) => setStatus(value as IncidentStatus)}>
+								<SelectTrigger aria-labelledby="update-status-label">
+									<SelectValue>
+										<IncidentStatusOption value={status} />
+									</SelectValue>
+								</SelectTrigger>
+								<SelectContent>
+									{INCIDENT_STATUSES.map((value) => (
+										<SelectItem key={value} value={value}>
+											<IncidentStatusOption value={value} />
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<AiComposeField
+							note={note}
+							body={body}
+							onNoteChange={setNote}
+							onBodyChange={setBody}
+							onGenerate={() =>
+								draft.mutate(
+									{ note, status },
+									{
+										onSuccess: (result) => {
+											setBody(result.body);
+											setGenerated(true);
+										},
 									},
-								},
-							)
-						}
-						isPending={draft.isPending}
-						error={draft.error}
-						generated={generated}
-					/>
-					<div className="form-actions compact-actions">
+								)
+							}
+							isPending={draft.isPending}
+							error={draft.error}
+							generated={generated}
+						/>
+						{post.isError && (
+							<p className="form-error" role="alert">
+								{post.error.message}
+							</p>
+						)}
+					</div>
+					<div className="incident-dialog-actions">
 						<Button variant="unstyled" className="secondary-button" type="button" onClick={onClose}>
 							Cancel
 						</Button>
@@ -72,11 +79,6 @@ export function IncidentUpdateDialog({ incident, onClose }: { incident: Incident
 							{post.isPending ? 'Publishing…' : status === 'resolved' ? 'Resolve incident' : 'Post update'}
 						</Button>
 					</div>
-					{post.isError && (
-						<p className="form-error" role="alert">
-							{post.error.message}
-						</p>
-					)}
 				</form>
 			</DialogContent>
 		</Dialog>

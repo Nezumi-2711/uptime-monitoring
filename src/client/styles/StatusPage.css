@@ -1505,7 +1505,7 @@
 }
 
 .dark .uptime-days-caption {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .uptime-days-caption i {
@@ -1598,7 +1598,7 @@
 }
 
 .dark .past-incident-meta {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .past-incident-chevron {
@@ -1634,7 +1634,7 @@
 /* Status Footer */
 .dark .status-footer {
 	border-top-color: rgba(255, 255, 255, 0.08);
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .status-footer i {
@@ -1676,7 +1676,7 @@
 }
 
 .dark .incident-detail-summary dt {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .incident-detail-summary dd {
@@ -1692,7 +1692,7 @@
 }
 
 .dark .incident-timeline-heading > span {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .incident-timeline strong {
@@ -1700,7 +1700,7 @@
 }
 
 .dark .incident-timeline time {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .incident-timeline-entry p {

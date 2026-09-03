@@ -36,8 +36,8 @@ const formatUptimeTooltip: NonNullable<ComponentProps<typeof ChartTooltipContent
 	const point = item.payload as UptimeDatum;
 	return (
 		<div className="flex w-full items-center justify-between gap-5">
-			<span className="text-[#777]">Successful</span>
-			<span className="font-mono font-medium tabular-nums text-[#171717]">
+			<span className="text-(--muted)">Successful</span>
+			<span className="font-mono font-medium tabular-nums text-(--ink)">
 				{point.successfulChecks}/{point.totalChecks}
 			</span>
 		</div>

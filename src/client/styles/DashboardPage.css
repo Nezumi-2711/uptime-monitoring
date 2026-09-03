@@ -498,34 +498,62 @@
 	text-align: left;
 	cursor: pointer;
 }
+.incident-dialog {
+	display: flex;
+	width: min(860px, calc(100% - 32px));
+	max-width: 860px;
+	max-height: min(90dvh, 820px);
+	flex-direction: column;
+	padding: 0;
+	gap: 0;
+	overflow: hidden;
+	border-radius: 14px;
+}
 .incident-dialog [data-slot='dialog-header'] {
 	gap: 5px;
-	padding-right: 36px;
-	padding-bottom: 18px;
+	padding: 24px 64px 20px 28px;
 	border-bottom: 1px solid var(--border);
+	background: linear-gradient(180deg, #fff, #fdfdfd);
 }
 .incident-dialog [data-slot='dialog-header'] .overline {
 	margin-bottom: 3px;
+	color: #27845e;
 }
 .incident-dialog [data-slot='dialog-title'] {
-	font-size: 19px;
+	font-size: 21px;
 	line-height: 1.25;
+	letter-spacing: -0.025em;
 }
 .incident-form {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 20px;
+	display: flex;
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
+	overflow: hidden;
 }
-.incident-form > * {
-	grid-column: 1;
+.incident-form-body {
+	display: grid;
+	min-height: 0;
+	padding: 24px 28px 28px;
+	gap: 22px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
 }
 .incident-form-grid {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
+	grid-template-columns: minmax(150px, 0.85fr) minmax(150px, 0.85fr) minmax(260px, 1.6fr);
 	gap: 16px;
+}
+.incident-form-grid [data-slot='select-trigger'],
+.incident-update-status [data-slot='select-trigger'] {
+	width: 100%;
 }
 .incident-title-field {
 	min-width: 0;
+}
+.incident-title-field input::placeholder {
+	font-size: 13px;
 }
 .incident-select-option {
 	display: inline-flex;
@@ -581,7 +609,7 @@
 	background: #fee9e7;
 }
 .incident-form textarea {
-	min-height: 138px;
+	min-height: 154px;
 	width: 100%;
 	resize: vertical;
 	border: 1px solid var(--border);
@@ -628,6 +656,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+	min-height: 52px;
 	max-height: 104px;
 	overflow-y: auto;
 	padding: 10px;
@@ -664,10 +693,22 @@
 	height: 14px;
 	accent-color: var(--primary-deep);
 }
+.incident-service-empty {
+	display: flex;
+	align-items: center;
+	min-height: 30px;
+	margin: 0;
+	padding-inline: 2px;
+	font-size: 13px;
+	color: var(--muted-foreground);
+}
 .ai-compose-field {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 16px;
+}
+.ai-compose-field > .form-error {
+	grid-column: 1 / -1;
 }
 .ai-compose-pane {
 	display: flex;
@@ -688,6 +729,7 @@
 }
 .ai-compose-pane-header small {
 	margin-left: 0;
+	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
 .ai-compose-button {
@@ -703,23 +745,31 @@
 }
 .ai-compose-hint button {
 	border: 0;
+	padding: 0;
 	background: transparent;
-	color: var(--primary);
+	color: #17865b;
 	text-decoration: underline;
+	text-underline-offset: 2px;
 	cursor: pointer;
 }
-.incident-form > .form-actions {
-	align-items: center;
-	margin-top: 2px;
-	padding: 0;
-	border: 0;
-	background: transparent;
+.incident-update-status {
+	max-width: 260px;
 }
-.incident-form > .form-actions button {
+.incident-dialog-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex: 0 0 auto;
+	gap: 10px;
+	padding: 16px 28px;
+	border-top: 1px solid var(--border);
+	background: #fafafa;
+}
+.incident-dialog-actions button {
 	min-height: 40px;
 	padding-inline: 18px;
 }
-.incident-form > .form-actions .secondary-button {
+.incident-dialog-actions .secondary-button {
 	border-color: #d4d4d4;
 	color: #444;
 	background: #fff;
@@ -727,12 +777,12 @@
 		0 1px 2px rgb(0 0 0 / 0.05),
 		inset 0 1px rgb(255 255 255 / 0.7);
 }
-.incident-form > .form-actions .secondary-button:hover:not(:disabled) {
+.incident-dialog-actions .secondary-button:hover:not(:disabled) {
 	border-color: #aaa;
 	color: var(--foreground);
 	background: #f5f5f5;
 }
-.incident-form > .form-actions .primary-button {
+.incident-dialog-actions .primary-button {
 	min-width: 148px;
 	box-shadow:
 		0 1px 2px rgb(0 0 0 / 0.08),
@@ -838,7 +888,19 @@
 
 @media (max-width: 640px) {
 	.incident-dialog {
-		padding: 22px;
+		width: calc(100% - 24px);
+		max-height: calc(100dvh - 24px);
+		border-radius: 12px;
+	}
+	.incident-dialog [data-slot='dialog-header'] {
+		padding: 21px 58px 18px 20px;
+	}
+	.incident-form-body {
+		padding: 20px;
+		gap: 20px;
+	}
+	.incident-dialog-actions {
+		padding: 14px 20px;
 	}
 	.dashboard-incident-list article {
 		grid-template-columns: 1fr;
@@ -890,21 +952,49 @@
 }
 
 @media (max-width: 440px) {
+	.incident-dialog {
+		top: auto;
+		bottom: 0;
+		width: 100%;
+		max-width: none;
+		max-height: calc(100dvh - 8px);
+		translate: -50% 0;
+		border-radius: 16px 16px 0 0;
+	}
+	.incident-dialog [data-slot='dialog-header'] {
+		padding: 20px 52px 17px 18px;
+	}
+	.incident-dialog [data-slot='dialog-title'] {
+		font-size: 20px;
+	}
+	.incident-form-body {
+		padding: 18px;
+		gap: 18px;
+	}
 	.incident-form-grid {
 		grid-template-columns: 1fr;
 	}
 	.incident-title-field {
 		grid-column: auto;
 	}
-	.incident-form > .form-actions {
-		gap: 8px;
+	.incident-form textarea {
+		min-height: 132px;
 	}
-	.incident-form > .form-actions button {
+	.incident-dialog-actions {
+		gap: 8px;
+		padding: 12px 18px max(12px, env(safe-area-inset-bottom));
+	}
+	.incident-dialog-actions button {
 		flex: 1;
 		padding-inline: 12px;
 	}
-	.incident-form > .form-actions .primary-button {
+	.incident-dialog-actions .primary-button {
 		min-width: 0;
+	}
+	.ai-compose-pane-header {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 2px;
 	}
 }
 
@@ -1062,7 +1152,7 @@
 }
 
 .dark .metric-card span {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 /* Services / Monitor List Panel */
@@ -1127,7 +1217,7 @@
 }
 
 .dark .monitor-meta {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .monitor-result code {
@@ -1234,7 +1324,7 @@
 /* Dashboard Page Footer */
 .dark .dashboard-page-footer {
 	border-top-color: rgba(255, 255, 255, 0.08);
-	color: #6b7280;
+	color: var(--faint);
 }
 
 /* Dialogs & Forms in Dark Mode (Add/Edit Monitor, Incident, Delete) */
@@ -1335,8 +1425,31 @@
 }
 
 /* Incident Dialog specifics */
+.dark [data-slot='dialog-overlay'] {
+	background: rgba(0, 0, 0, 0.58);
+}
+
 .dark .incident-dialog [data-slot='dialog-header'] {
 	border-bottom-color: rgba(255, 255, 255, 0.08);
+	background: linear-gradient(180deg, #111419, #101318);
+}
+
+.dark .incident-dialog-actions {
+	border-top-color: rgba(255, 255, 255, 0.08);
+	background: #0e1116;
+}
+
+.dark .incident-dialog-actions .secondary-button {
+	border-color: rgba(255, 255, 255, 0.14);
+	color: #d1d5db;
+	background: #181c23;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.dark .incident-dialog-actions .secondary-button:hover:not(:disabled) {
+	border-color: rgba(255, 255, 255, 0.24);
+	color: #f9fafb;
+	background: #20252e;
 }
 
 .dark .incident-service-options {
@@ -1359,6 +1472,10 @@
 	border-color: rgba(62, 207, 142, 0.4);
 	color: #3ecf8e;
 	background: rgba(62, 207, 142, 0.12);
+}
+
+.dark .incident-service-empty {
+	color: #9ca3af;
 }
 
 .dark .ai-compose-pane-header label {
@@ -1539,7 +1656,7 @@
 }
 
 .dark .metric-card span {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 /* Services / Monitor List Panel */
@@ -1604,7 +1721,7 @@
 }
 
 .dark .monitor-meta {
-	color: #6b7280;
+	color: var(--faint);
 }
 
 .dark .monitor-result code {
@@ -1711,7 +1828,7 @@
 /* Dashboard Page Footer */
 .dark .dashboard-page-footer {
 	border-top-color: rgba(255, 255, 255, 0.08);
-	color: #6b7280;
+	color: var(--faint);
 }
 
 /* Dialogs & Forms in Dark Mode (Add/Edit Monitor, Incident, Delete) */

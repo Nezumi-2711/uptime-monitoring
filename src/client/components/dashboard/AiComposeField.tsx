@@ -31,14 +31,14 @@ export function AiComposeField({
 			<div className="ai-compose-pane">
 				<div className="ai-compose-pane-header">
 					<label htmlFor="incident-note">Internal note</label>
-					<small>Admin only</small>
+					<small>Admin only · {note.length}/1000</small>
 				</div>
 				<textarea
 					id="incident-note"
 					value={note}
 					onChange={(event) => onNoteChange(event.target.value)}
 					maxLength={1000}
-					placeholder="redis full memory, scaling capacity"
+					placeholder="e.g. Redis is at capacity; scaling is in progress"
 				/>
 				{enabled ? (
 					<Button
@@ -64,12 +64,13 @@ export function AiComposeField({
 			<div className="ai-compose-pane">
 				<div className="ai-compose-pane-header">
 					<label htmlFor="incident-public-body">Public update</label>
-					<small>Customer-facing</small>
+					<small>Customer-facing · {body.length}/2000</small>
 				</div>
 				<textarea
 					id="incident-public-body"
 					value={body}
 					onChange={(event) => onBodyChange(event.target.value)}
+					placeholder="Explain the impact and what your team is doing"
 					maxLength={2000}
 					required
 					aria-busy={isPending}

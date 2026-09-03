@@ -7,7 +7,7 @@ const emptyVariants = cva('grid justify-items-center bg-transparent p-[56px_24px
 	variants: {
 		variant: {
 			default: '',
-			error: 'rounded-[8px] border border-[#ebd1d1] bg-[#fffafa]',
+			error: 'rounded-[8px] border border-[#ebd1d1] bg-[#fffafa] dark:border-red-400/25 dark:bg-red-400/6',
 		},
 	},
 	defaultVariants: {
@@ -19,7 +19,7 @@ const emptyMediaVariants = cva('', {
 	variants: {
 		variant: {
 			default: '',
-			icon: 'mb-4.5 grid size-12 place-items-center rounded-[8px] border border-[#dcdcdc] bg-[#fafafa] text-[#666] [&_svg]:size-5.5',
+			icon: 'mb-4.5 grid size-12 place-items-center rounded-[8px] border border-[#dcdcdc] bg-[#fafafa] text-[#666] dark:border-white/12 dark:bg-white/4 dark:text-[#aeb4bf] [&_svg]:size-5.5',
 		},
 	},
 	defaultVariants: {
@@ -59,7 +59,9 @@ function EmptyMedia({ className, variant, ...props }: React.ComponentProps<'div'
 			data-variant={variant}
 			className={cn(
 				emptyMediaVariants({ variant }),
-				emptyVariant === 'error' && variant === 'icon' && 'border-[#ebcaca] bg-[#fff3f3] text-[#a34242]',
+				emptyVariant === 'error' &&
+					variant === 'icon' &&
+					'border-[#ebcaca] bg-[#fff3f3] text-[#a34242] dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-300',
 				className,
 			)}
 			{...props}
@@ -73,7 +75,7 @@ function EmptyTitle({ className, ...props }: React.ComponentProps<'div'>) {
 	return (
 		<div
 			data-slot="empty-title"
-			className={cn('text-[16px] font-medium text-[#171717]', variant === 'error' && 'text-[#8b3434]', className)}
+			className={cn('text-[16px] font-medium text-(--ink)', variant === 'error' && 'text-[#8b3434] dark:text-red-300', className)}
 			{...props}
 		/>
 	);

@@ -25,9 +25,9 @@ function SelectTrigger({ className, children, ...props }: React.ComponentProps<t
 		<SelectPrimitive.Trigger
 			data-slot="select-trigger"
 			className={cn(
-				'group flex min-h-10.5 w-full cursor-pointer items-center justify-between gap-2 rounded-[6px] border border-[#cfcfcf] bg-white px-3 py-2 text-left',
+				'group flex min-h-10.5 w-full cursor-pointer items-center justify-between gap-2 rounded-[6px] border border-[#cfcfcf] bg-white px-3 py-2 text-left dark:border-white/12 dark:bg-[#0b0d0f]',
 				'text-[14px] text-(--ink) shadow-[inset_0_1px_2px_rgb(0_0_0/0.025)] transition-colors outline-none data-placeholder:text-(--faint) [&_svg]:shrink-0',
-				'hover:border-[#aaa]',
+				'hover:border-[#aaa] dark:hover:border-white/22',
 				'focus-visible:border-(--primary-deep) focus-visible:shadow-[0_0_0_3px_rgb(36_180_126/0.14)] focus-visible:outline-none!',
 				'data-[state=open]:border-(--primary-deep) data-[state=open]:shadow-[0_0_0_3px_rgb(36_180_126/0.14)]',
 				'disabled:cursor-not-allowed disabled:opacity-50',
@@ -51,7 +51,7 @@ function SelectContent({ className, children, position = 'popper', ...props }: R
 				data-slot="select-content"
 				className={cn(
 					'relative z-50 max-h-(--radix-select-content-available-height) min-w-32 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto',
-					'rounded-[8px] border border-(--hairline) bg-white text-(--ink) shadow-[0_8px_24px_rgb(0_0_0/0.08)]',
+					'rounded-[8px] border border-(--hairline) bg-white text-(--ink) shadow-[0_8px_24px_rgb(0_0_0/0.08)] dark:bg-[#111419] dark:shadow-[0_12px_32px_rgb(0_0_0/0.55)]',
 					'duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
 					'data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1',
 					position === 'popper' &&
@@ -87,7 +87,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
 			data-slot="select-item"
 			className={cn(
 				'relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-2 text-[14px] text-(--ink) outline-hidden select-none',
-				'focus:bg-[#ededed] data-[state=checked]:font-medium',
+				'focus:bg-[#ededed] dark:focus:bg-white/8 data-[state=checked]:font-medium',
 				'data-disabled:pointer-events-none data-disabled:opacity-50',
 				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 				className,
