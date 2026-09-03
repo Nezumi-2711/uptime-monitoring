@@ -873,12 +873,19 @@ button {
 }
 
 .auth-page {
+	position: relative;
 	display: grid;
 	grid-template-rows: auto 1fr auto;
 	justify-items: center;
 	min-height: 100dvh;
 	padding: 32px 24px 24px;
 	background: radial-gradient(circle at 50% 38%, rgb(62 207 142 / 0.08), transparent 34%), linear-gradient(#fff, #fcfcfc);
+}
+.auth-theme-toggle {
+	position: absolute;
+	z-index: 1;
+	top: 28px;
+	right: 28px;
 }
 .auth-page::before {
 	position: fixed;
@@ -2101,6 +2108,11 @@ button {
 }
 .status-header-inner {
 	width: min(960px, calc(100% - 48px));
+}
+.status-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 .status-header-action {
 	min-height: 34px;

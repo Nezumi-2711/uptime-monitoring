@@ -2,6 +2,7 @@ import { Activity, LogOut, Menu, Settings, Zap, type LucideIcon } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ThemeToggle } from './ThemeToggle';
 import { navigate, usePathname } from '../lib/router';
 import { useLogoutMutation } from '../queries/auth';
 
@@ -54,6 +55,7 @@ export function AppHeader({ context }: { context?: string }) {
 				<TooltipProvider>
 					<nav className="nav-actions" aria-label="Primary navigation">
 						{context && <span className="header-context">{context}</span>}
+						<ThemeToggle className="app-nav-icon" />
 						{items.map((item) => {
 							const ItemIcon = item.icon;
 							const isCurrent = item.href === pathname;
@@ -97,6 +99,7 @@ export function AppHeader({ context }: { context?: string }) {
 								{context && <SheetDescription>{context}</SheetDescription>}
 							</SheetHeader>
 							<nav className="app-nav-mobile" aria-label="Primary navigation">
+								<ThemeToggle className="app-nav-mobile-item" showLabel />
 								{items.map((item) => {
 									const ItemIcon = item.icon;
 									const isCurrent = item.href === pathname;

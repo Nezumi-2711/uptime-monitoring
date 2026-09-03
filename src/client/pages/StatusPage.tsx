@@ -6,6 +6,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@
 import type { PublicOverallStatus, PublicServiceStatus } from '../api/status';
 import { SiteIcon } from '../components/SiteIcon';
 import { StatusHistoryBar } from '../components/StatusHistoryBar';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { formatDate, formatDuration } from '../lib/format';
 import { navigate } from '../lib/router';
 import { useSeo } from '../lib/seo';
@@ -96,14 +97,17 @@ export function StatusPage() {
 						<Zap className="brand-mark" fill="currentColor" />
 						<span>upwatch</span>
 					</a>
-					<Button
-						variant="unstyled"
-						className="status-header-action"
-						type="button"
-						onClick={() => navigate(sessionQuery.data?.authenticated ? '/dashboard' : '/login')}
-					>
-						{sessionQuery.data?.authenticated ? 'Dashboard' : 'Sign in'}
-					</Button>
+					<div className="status-header-actions">
+						<ThemeToggle className="app-nav-icon" />
+						<Button
+							variant="unstyled"
+							className="status-header-action"
+							type="button"
+							onClick={() => navigate(sessionQuery.data?.authenticated ? '/dashboard' : '/login')}
+						>
+							{sessionQuery.data?.authenticated ? 'Dashboard' : 'Sign in'}
+						</Button>
+					</div>
 				</div>
 			</header>
 

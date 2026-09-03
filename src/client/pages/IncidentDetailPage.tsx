@@ -2,6 +2,7 @@ import { ArrowLeft, TriangleAlert, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { IncidentTimeline } from '../components/IncidentTimeline';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { navigate } from '../lib/router';
 import { useSeo } from '../lib/seo';
 import { usePublicIncidentQuery } from '../queries/status';
@@ -32,9 +33,12 @@ export function IncidentDetailPage({ id }: { id: number }) {
 					<a className="brand" href="/" aria-label="Upwatch public status">
 						<Zap className="brand-mark" fill="currentColor" /> <span>upwatch</span>
 					</a>
-					<Button variant="unstyled" className="status-header-action" onClick={() => navigate('/')}>
-						Status page
-					</Button>
+					<div className="status-header-actions">
+						<ThemeToggle className="app-nav-icon" />
+						<Button variant="unstyled" className="status-header-action" onClick={() => navigate('/')}>
+							Status page
+						</Button>
+					</div>
 				</div>
 			</header>
 			<main className="status-main incident-detail-page">

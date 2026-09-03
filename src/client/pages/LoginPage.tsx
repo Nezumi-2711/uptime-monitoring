@@ -3,6 +3,7 @@ import { Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { navigate } from '../lib/router';
 import { useSeo } from '../lib/seo';
 import { useLoginMutation, useSessionQuery } from '../queries/auth';
@@ -26,6 +27,7 @@ export function LoginPage() {
 
 	return (
 		<main className="auth-page">
+			<ThemeToggle className="auth-theme-toggle app-nav-icon" />
 			<div className="auth-brand" aria-label="Upwatch">
 				<Zap className="auth-brand-mark" fill="currentColor" />
 				<span>upwatch</span>

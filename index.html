@@ -5,7 +5,27 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="description" content="Upwatch — fast, dependable uptime monitoring from Cloudflare's edge." />
 		<meta name="robots" content="noindex,nofollow" />
+		<meta name="color-scheme" content="light dark" />
 		<meta name="theme-color" content="#ffffff" />
+		<script>
+			(() => {
+				try {
+					const storedTheme = localStorage.getItem('upwatch-theme');
+					const theme =
+						storedTheme === 'light' || storedTheme === 'dark'
+							? storedTheme
+							: matchMedia('(prefers-color-scheme: dark)').matches
+								? 'dark'
+								: 'light';
+					const root = document.documentElement;
+					root.classList.toggle('dark', theme === 'dark');
+					root.style.colorScheme = theme;
+					document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#171717' : '#ffffff');
+				} catch {
+					// Keep the default light theme when browser storage is unavailable.
+				}
+			})();
+		</script>
 		<link rel="icon" href="/favicon.ico" sizes="32x32" />
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
