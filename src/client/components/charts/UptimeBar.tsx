@@ -99,7 +99,7 @@ export function UptimeBar({ checks }: { checks: Check[] }) {
 						<ChartTooltip
 							content={
 								<ChartTooltipContent
-									className="min-w-36 gap-1.5 rounded-[6px] border-(--hairline) bg-white/97 px-3 py-2.5 shadow-[0_8px_24px_rgb(24_74_52/0.1),0_2px_6px_rgb(0_0_0/0.04)] backdrop-blur-sm"
+									className="monitor-chart-tooltip min-w-36 gap-1.5 rounded-[6px] border-(--hairline) bg-white/97 px-3 py-2.5 shadow-[0_8px_24px_rgb(24_74_52/0.1),0_2px_6px_rgb(0_0_0/0.04)] backdrop-blur-sm"
 									hideIndicator={false}
 									nameKey="status"
 									labelFormatter={(_, payload) => formatBucketTime(payload[0].payload as UptimeDatum)}
