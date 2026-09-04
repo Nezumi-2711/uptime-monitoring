@@ -38,21 +38,6 @@
 	background: rgba(62, 207, 142, 0.1);
 	border-color: rgba(62, 207, 142, 0.25);
 }
-.auth-page::before {
-	position: fixed;
-	inset: 0;
-	z-index: 0;
-	pointer-events: none;
-	background-image: radial-gradient(#dcdcdc 0.65px, transparent 0.65px);
-	background-size: 16px 16px;
-	mask-image: linear-gradient(to bottom, transparent, black 24%, transparent 76%);
-	content: '';
-}
-.dark .auth-page::before {
-	background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
-	background-size: 20px 20px;
-	mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 25%, transparent 80%);
-}
 .auth-brand {
 	position: relative;
 	z-index: 1;

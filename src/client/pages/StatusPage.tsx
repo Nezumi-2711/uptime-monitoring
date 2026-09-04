@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Activity, ChevronRight, CircleCheck, Database, History, RefreshCw, TriangleAlert, Wrench, Zap } from 'lucide-react';
+import {
+	Activity,
+	ChevronRight,
+	CircleCheck,
+	Database,
+	History,
+	LayoutDashboard,
+	LogIn,
+	RefreshCw,
+	TriangleAlert,
+	Wrench,
+	Zap,
+} from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { PublicOverallStatus, PublicServiceStatus } from '../api/status';
 import { SiteIcon } from '../components/SiteIcon';
 import { StatusHistoryBar } from '../components/StatusHistoryBar';
@@ -99,14 +112,23 @@ export function StatusPage() {
 					</a>
 					<div className="status-header-actions">
 						<ThemeToggle className="app-nav-icon" />
-						<Button
-							variant="unstyled"
-							className="status-header-action"
-							type="button"
-							onClick={() => navigate(sessionQuery.data?.authenticated ? '/dashboard' : '/login')}
-						>
-							{sessionQuery.data?.authenticated ? 'Dashboard' : 'Sign in'}
-						</Button>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="app-nav-icon"
+										type="button"
+										aria-label={sessionQuery.data?.authenticated ? 'Dashboard' : 'Sign in'}
+										onClick={() => navigate(sessionQuery.data?.authenticated ? '/dashboard' : '/login')}
+									>
+										{sessionQuery.data?.authenticated ? <LayoutDashboard aria-hidden="true" /> : <LogIn aria-hidden="true" />}
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent sideOffset={6}>{sessionQuery.data?.authenticated ? 'Dashboard' : 'Sign in'}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					</div>
 				</div>
 			</header>
