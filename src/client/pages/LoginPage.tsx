@@ -29,7 +29,7 @@ export function LoginPage() {
 		<main className="relative grid min-h-dvh grid-rows-[auto_1fr_auto] justify-items-center bg-[radial-gradient(circle_at_50%_38%,rgb(62_207_142/0.08),transparent_34%),linear-gradient(#fff,#fcfcfc)] p-6 pt-8 pb-6 transition-[background,color] duration-250 ease-out max-compact:px-4 max-compact:py-6 dark:bg-[radial-gradient(ellipse_75%_55%_at_50%_30%,rgba(62,207,142,0.12),transparent_65%),radial-gradient(ellipse_40%_30%_at_50%_12%,rgba(36,180,126,0.07),transparent_50%),linear-gradient(180deg,#0c0e10_0%,#070809_100%)]">
 			<ThemeToggle className="absolute top-7 right-7 z-1 text-icon-muted transition-[color,background-color,border-color] duration-150 hover:bg-brand/10 hover:text-brand-deep dark:rounded-lg dark:border dark:border-white/8 dark:bg-white/3 dark:text-gray-400 dark:backdrop-blur-md dark:hover:border-brand/25 dark:hover:bg-brand/10 dark:hover:text-brand" />
 			<div
-				className="relative z-1 inline-flex items-center gap-2 text-brand font-semibold tracking-brand dark:text-white"
+				className="relative z-1 inline-flex items-center gap-2 text-brand-title font-semibold tracking-brand text-brand dark:text-white"
 				aria-label="Upwatch"
 			>
 				<Zap className="size-6.5 text-brand-deep dark:text-brand dark:drop-shadow-brand-glow" fill="currentColor" />

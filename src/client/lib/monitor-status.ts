@@ -1,4 +1,7 @@
 import type { Monitor } from '../api/monitors';
+import type { PublicService } from '../api/status';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function monitorState(
 	monitor: Pick<Monitor, 'lastOk' | 'lastDegraded' | 'degradedLatencyMs' | 'consecutiveFailures' | 'failureThreshold'>,
@@ -23,4 +26,23 @@ export function monitorState(
 	}
 	if (monitor.lastOk === true) return { label: 'Up', variant: 'online' as const, detail: null };
 	return { label: 'Not checked', variant: 'checking' as const, detail: null };
+}
+
+export function uptimeWindows(service: PublicService | undefined) {
+	if (!service) return { today: null, d7: null, d30: null };
+
+	const now = new Date();
+	const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+	const averageUptime = (days: number) => {
+		const values = service.history.flatMap(({ day, uptimePct }) =>
+			day >= todayUtc - (days - 1) * DAY_MS && uptimePct !== null ? [uptimePct] : [],
+		);
+		return values.length ? values.reduce((total, value) => total + value, 0) / values.length : null;
+	};
+
+	return {
+		today: service.history.find(({ day }) => day === todayUtc)?.uptimePct ?? null,
+		d7: averageUptime(7),
+		d30: averageUptime(30),
+	};
 }

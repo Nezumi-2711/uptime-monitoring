@@ -139,8 +139,8 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 						Checks run on the selected interval. Failures are retried immediately and must repeat before an incident is published.
 					</DialogDescription>
 				</DialogHeader>
-				<form className="monitor-form" onSubmit={handleSubmit}>
-					<label className="field field-name" htmlFor="monitor-name">
+				<form className="mt-6 grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2 lg:grid-cols-4" onSubmit={handleSubmit}>
+					<label className="field col-span-1" htmlFor="monitor-name">
 						<span>Name</span>
 						<Input
 							id="monitor-name"
@@ -150,7 +150,7 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 							required
 						/>
 					</label>
-					<label className="field field-url" htmlFor="monitor-url">
+					<label className="field col-span-1 lg:col-span-3" htmlFor="monitor-url">
 						<span>URL</span>
 						<Input
 							id="monitor-url"
@@ -249,11 +249,11 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 						</Select>
 						<small>Confirmed after about {Math.round(((form.failureThreshold ?? 2) * form.intervalSeconds) / 60)} minutes.</small>
 					</div>
-					<div className="toggle-field">
+					<div className="flex min-h-10.5 items-center gap-2.25 self-end text-caption text-ink-body dark:text-neutral-300 [&>label]:cursor-pointer">
 						<Switch id="monitor-enabled" checked={form.enabled ?? true} onCheckedChange={(enabled) => setForm({ ...form, enabled })} />
 						<label htmlFor="monitor-enabled">Enable scheduled checks</label>
 					</div>
-					<div className="toggle-field">
+					<div className="flex min-h-10.5 items-center gap-2.25 self-end text-caption text-ink-body dark:text-neutral-300 [&>label]:cursor-pointer">
 						<Switch
 							id="monitor-alerts-enabled"
 							checked={form.alertsEnabled ?? true}
@@ -261,13 +261,13 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 						/>
 						<label htmlFor="monitor-alerts-enabled">Enable incident alerts</label>
 					</div>
-					<details className="monitor-advanced">
-						<summary>
+					<details className="group col-span-full rounded-card-sm border border-hairline bg-surface-elevated dark:border-white/8 dark:bg-night-subtle">
+						<summary className="flex cursor-pointer list-none items-center justify-between p-3.5 px-4 text-caption font-medium text-ink-body [&::-webkit-details-marker]:hidden dark:text-neutral-300 dark:hover:text-neutral-50 [&>svg]:size-4 [&>svg]:transition-transform group-open:[&>svg]:rotate-180">
 							<span>Advanced request and response checks</span>
 							<ChevronDown aria-hidden="true" />
 						</summary>
-						<div className="monitor-advanced-grid">
-							<label className="field advanced-keyword" htmlFor="monitor-keyword">
+						<div className="grid grid-cols-1 gap-x-4 gap-y-5 border-t border-border-row p-4 pt-0.5 pb-4.5 sm:grid-cols-2 lg:grid-cols-4 dark:border-white/7 *:mt-4 [&_small]:text-footnote [&_small]:leading-alert [&_small]:text-muted-foreground dark:[&_small]:text-neutral-400">
+							<label className="field col-span-1 sm:col-span-2 lg:col-span-2" htmlFor="monitor-keyword">
 								<span>Expected response keyword</span>
 								<Input
 									id="monitor-keyword"
@@ -278,7 +278,7 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 								/>
 								<small>Case-insensitive match within the first 64 KB of the response.</small>
 							</label>
-							<div className="toggle-field advanced-inverted">
+							<div className="flex min-h-10.5 items-center gap-2.25 self-end text-caption text-ink-body dark:text-neutral-300 [&>label]:cursor-pointer col-span-1">
 								<Switch
 									id="monitor-keyword-inverted"
 									checked={form.keywordInverted ?? false}
@@ -287,7 +287,7 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 								/>
 								<label htmlFor="monitor-keyword-inverted">Fail when present</label>
 							</div>
-							<label className="field advanced-latency" htmlFor="monitor-degraded-latency">
+							<label className="field col-span-1" htmlFor="monitor-degraded-latency">
 								<span>Degraded above (ms)</span>
 								<Input
 									id="monitor-degraded-latency"
@@ -300,15 +300,15 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 								/>
 								<small>Publishes degraded performance after the configured confirmation count.</small>
 							</label>
-							<div className="advanced-headers">
-								<div className="advanced-section-heading">
+							<div className="col-span-full">
+								<div className="flex items-center justify-between gap-4 [&>div]:grid [&>div]:gap-0.75 [&_span]:text-caption [&_span]:font-medium dark:[&_span]:text-neutral-100">
 									<div>
 										<span>Request headers</span>
 										<small>Up to 10 headers. Restricted transport headers are blocked.</small>
 									</div>
 									<Button
 										variant="unstyled"
-										className="secondary-button header-add-button"
+										className="secondary-button inline-flex min-h-8 items-center gap-1.5 px-2.5 py-1.5 [&_svg]:size-3.5"
 										type="button"
 										onClick={addHeader}
 										disabled={headers.length >= 10}
@@ -317,9 +317,9 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 									</Button>
 								</div>
 								{headers.length > 0 && (
-									<div className="header-rows">
+									<div className="mt-2.5 grid gap-2">
 										{headers.map((header) => (
-											<div className="header-row" key={header.id}>
+											<div className="grid grid-cols-[minmax(130px,1fr)_minmax(180px,2fr)_36px] gap-2" key={header.id}>
 												<Input
 													aria-label="Header name"
 													value={header.name}
@@ -336,7 +336,7 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 												/>
 												<Button
 													variant="unstyled"
-													className="icon-button header-remove-button"
+													className="icon-button size-9 text-error-text hover:border-danger-border hover:bg-danger-bg dark:text-red-400 dark:hover:bg-red-500/12 [&_svg]:size-3.5"
 													type="button"
 													aria-label={`Remove ${header.name || 'header'}`}
 													onClick={() => setHeaders((current) => current.filter((item) => item.id !== header.id))}
@@ -349,10 +349,11 @@ export function MonitorFormDialog({ editing, onClose }: MonitorFormDialogProps) 
 								)}
 							</div>
 							{form.method === 'POST' && (
-								<label className="field advanced-body" htmlFor="monitor-request-body">
+								<label className="field col-span-full" htmlFor="monitor-request-body">
 									<span>Request body</span>
 									<textarea
 										id="monitor-request-body"
+										className="w-full resize-y rounded-sm border border-input bg-white p-2.5 px-3 font-mono text-micro leading-normal text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-deep/30 dark:border-white/12 dark:bg-night-input/85 dark:text-neutral-50 dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)] dark:hover:border-white/22"
 										value={form.requestBody ?? ''}
 										onChange={(event) => setForm({ ...form, requestBody: event.target.value || null })}
 										maxLength={8192}
