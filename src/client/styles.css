@@ -3,7 +3,6 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import './styles/StatusPage.css';
-@import './styles/MonitorDetailPage.css';
 @import './styles/SettingsPage.css';
 
 @custom-variant dark (&:is(.dark *));
@@ -537,6 +536,16 @@
 	width: 15px;
 	height: 15px;
 }
+.dark .back-link {
+	color: #858d9a;
+	transition: color 160ms ease;
+}
+.dark .back-link:hover {
+	color: #f3f4f6;
+}
+.dark .back-link svg {
+	color: #4ade80;
+}
 .table-empty {
 	display: grid;
 	min-height: 150px;
@@ -577,6 +586,16 @@
 	from {
 		opacity: 0;
 		transform: translateY(18px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+@keyframes monitor-detail-enter {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
 	}
 	to {
 		opacity: 1;
@@ -661,10 +680,61 @@
 	}
 }
 
+@utility monitor-scroll {
+	max-height: clamp(320px, 52vh, 556px);
+	overflow: auto;
+	overscroll-behavior: contain;
+	scrollbar-color: #b8c7c0 #f4f6f5;
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+
+	&:focus-visible {
+		outline: 2px solid rgb(36 180 126 / 0.45);
+		outline-offset: -2px;
+	}
+
+	&::-webkit-scrollbar {
+		width: 9px;
+		height: 9px;
+	}
+
+	&::-webkit-scrollbar-track {
+		background: #f4f6f5;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		border: 2px solid #f4f6f5;
+		border-radius: 999px;
+		background: #b8c7c0;
+	}
+
+	&::-webkit-scrollbar-thumb:hover {
+		background: #91a69d;
+	}
+}
+
+.dark .monitor-scroll {
+	scrollbar-color: #3c4650 #0c0e11;
+
+	&::-webkit-scrollbar-track {
+		background: #0c0e11;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		border-color: #0c0e11;
+		background: #3c4650;
+	}
+
+	&::-webkit-scrollbar-thumb:hover {
+		background: #53606b;
+	}
+}
+
 @theme inline {
 	--font-sans: 'DM Sans', 'Helvetica Neue', sans-serif;
 	--font-mono: 'IBM Plex Mono', monospace;
 	--animate-enter: enter 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	--animate-monitor-enter: monitor-detail-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 
 	/* Brand emerald palette */
 	--color-brand: #3ecf8e;
@@ -672,6 +742,7 @@
 	--color-brand-hover: #36c487;
 	--color-brand-border: #35c586;
 	--color-brand-light: #4ae09e;
+	--color-brand-soft: #4ade80;
 	--color-brand-muted: #55816e;
 	--color-brand-dark-text: #090a0c;
 
@@ -681,6 +752,7 @@
 	--color-faint: var(--faint);
 	--color-soft: var(--soft);
 	--color-night: var(--night);
+	--color-primary-deep: var(--primary-deep);
 
 	/* Neutral text and icon shades */
 	--color-ink-label: #353535;
@@ -689,6 +761,7 @@
 	--color-icon-muted: #5f5f5f;
 
 	/* Dark mode surfaces */
+	--color-night-base: #090b0d;
 	--color-night-root: #090a0c;
 	--color-night-card: #111419;
 	--color-night-input: #0b0d0f;
@@ -699,6 +772,24 @@
 	--color-night-item-hover: #1d222b;
 	--color-night-item-active: #20252e;
 	--color-night-dialog: #0e1116;
+	--color-night-chart: #0d0f13;
+	--color-night-elevated: #0f1115;
+	--color-night-muted: #111215;
+	--color-night-surface: #13161b;
+	--color-night-card-alt: #15171b;
+	--color-night-incident: #151114;
+
+	/* Dark mode text tones */
+	--color-night-metric: #f4f7f6;
+	--color-night-heading: #f3f5f7;
+	--color-night-title: #e8ebef;
+	--color-night-body: #e5e7eb;
+	--color-night-code: #c7ced7;
+	--color-night-muted-text: #929aa7;
+	--color-night-subtle-text: #7e8794;
+	--color-night-faint: #737c89;
+	--color-night-faint-alt: #747d89;
+	--color-night-scale: #68717e;
 
 	/* Light surfaces & backgrounds */
 	--color-surface-soft: #fafafa;
@@ -707,6 +798,28 @@
 	--color-surface-hover: #fdfdfd;
 	--color-surface-accent: #eef9f4;
 	--color-surface-accent-hover: #e4f6ed;
+	--color-surface-sparkline: #fdfefe;
+	--color-surface-uptime: #fcfefd;
+	--color-surface-danger-subtle: #fdfafa;
+
+	/* Status orb colors */
+	--color-status-online-border: #c5f1df;
+	--color-status-offline-border: #f2d4d4;
+	--color-status-offline-bg: #c74f4f;
+	--color-status-pending-border: #f6e2c8;
+	--color-status-pending-bg: #d8892f;
+	--color-status-pending-dark: #f0a440;
+	--color-status-checking-border: #eee5bd;
+	--color-status-checking-bg: #c6aa38;
+	--color-status-checking-dark: #e6c94b;
+
+	/* Incident status & stream colors */
+	--color-incident-border: #e8c3c3;
+	--color-incident-bg: #fff8f8;
+	--color-incident-text: #a83e3e;
+	--color-incident-active-bg: #fff0f0;
+	--color-incident-active-text: #aa4141;
+	--color-incident-resolved-bg: #eaf9f2;
 
 	/* Borders & Dividers */
 	--color-border-subtle: #dedede;
@@ -717,6 +830,8 @@
 	--color-border-input-hover: #aaaaaa;
 	--color-border-accent: #c9eadb;
 	--color-border-accent-checked: #8dd9b9;
+	--color-border-hero: #e7e7e7;
+	--color-border-divider: #f0f0f0;
 
 	/* Text & foreground tones */
 	--color-ink-muted-dark: #888888;

@@ -26,7 +26,7 @@ export function LatencySparkline({ checks }: { checks: Check[] }) {
 	if (data.length < 2)
 		return (
 			<Empty className="min-h-37.5 p-6">
-				<EmptyTitle className="text-[13px]">Not enough latency data</EmptyTitle>
+				<EmptyTitle className="text-caption">Not enough latency data</EmptyTitle>
 				<EmptyDescription>More checks are needed to draw latency.</EmptyDescription>
 			</Empty>
 		);
@@ -35,7 +35,11 @@ export function LatencySparkline({ checks }: { checks: Check[] }) {
 	const maximum = Math.max(...values);
 
 	return (
-		<div className="sparkline-wrap" role="img" aria-label={`Latency from ${minimum} to ${maximum} milliseconds`}>
+		<div
+			className="relative h-61.25 p-[26px_24px_24px] bg-linear-to-b from-surface-sparkline to-white dark:bg-[linear-gradient(180deg,rgb(62_207_142/0.025),transparent_55%),var(--color-night-chart)] dark:[&_.recharts-cartesian-grid_line]:stroke-white/7.5"
+			role="img"
+			aria-label={`Latency from ${minimum} to ${maximum} milliseconds`}
+		>
 			<ChartContainer config={latencyConfig} className="h-full w-full">
 				<AreaChart data={data} margin={{ top: 10, right: 4, bottom: 4, left: 4 }}>
 					<defs>
@@ -50,7 +54,7 @@ export function LatencySparkline({ checks }: { checks: Check[] }) {
 					<ChartTooltip
 						content={
 							<ChartTooltipContent
-								className="monitor-chart-tooltip min-w-36 gap-1.5 rounded-[6px] border-(--hairline) bg-white/97 px-3 py-2.5 shadow-[0_8px_24px_rgb(24_74_52/0.1),0_2px_6px_rgb(0_0_0/0.04)] backdrop-blur-sm"
+								className="min-w-36 gap-1.5 rounded-sm border-hairline bg-white/97 px-3 py-2.5 shadow-[0_8px_24px_rgb(24_74_52/0.1),0_2px_6px_rgb(0_0_0/0.04)] backdrop-blur-sm dark:border-white/12 dark:bg-night-surface/96 dark:text-night-body dark:shadow-[0_16px_40px_rgb(0_0_0/0.55),inset_0_1px_rgb(255_255_255/0.045)]"
 								labelFormatter={(_, payload) => new Date((payload[0].payload as LatencyDatum).t).toLocaleString()}
 							/>
 						}
@@ -71,7 +75,7 @@ export function LatencySparkline({ checks }: { checks: Check[] }) {
 					/>
 				</AreaChart>
 			</ChartContainer>
-			<div className="chart-scale">
+			<div className="pointer-events-none absolute inset-[19px_22px_20px_auto] flex flex-col justify-between font-mono text-[9px]/none font-normal text-ink-faint-alt dark:text-night-scale">
 				<span>{maximum} ms</span>
 				<span>{minimum} ms</span>
 			</div>

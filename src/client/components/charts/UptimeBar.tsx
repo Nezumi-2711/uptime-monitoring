@@ -37,7 +37,7 @@ const formatUptimeTooltip: NonNullable<ComponentProps<typeof ChartTooltipContent
 	return (
 		<div className="flex w-full items-center justify-between gap-5">
 			<span className="text-(--muted)">Successful</span>
-			<span className="font-mono font-medium tabular-nums text-(--ink)">
+			<span className="font-mono font-medium tabular-nums text-ink">
 				{point.successfulChecks}/{point.totalChecks}
 			</span>
 		</div>
@@ -83,7 +83,7 @@ export function UptimeBar({ checks }: { checks: Check[] }) {
 	if (data.length === 0)
 		return (
 			<Empty className="min-h-37.5 p-6">
-				<EmptyTitle className="text-[13px]">No availability data yet</EmptyTitle>
+				<EmptyTitle className="text-caption">No availability data yet</EmptyTitle>
 				<EmptyDescription>No availability checks recorded yet.</EmptyDescription>
 			</Empty>
 		);
@@ -91,7 +91,11 @@ export function UptimeBar({ checks }: { checks: Check[] }) {
 	const successfulChecks = checks.filter((check) => check.ok).length;
 	return (
 		<div>
-			<div className="uptime-bar" role="img" aria-label={`${successfulChecks} of ${checks.length} recent checks succeeded`}>
+			<div
+				className="h-dialog-btn p-[24px_22px_18px] bg-linear-to-b from-surface-uptime to-white dark:bg-[linear-gradient(180deg,rgb(62_207_142/0.025),transparent_55%),var(--color-night-chart)]"
+				role="img"
+				aria-label={`${successfulChecks} of ${checks.length} recent checks succeeded`}
+			>
 				<ChartContainer config={uptimeConfig} className="h-full w-full">
 					<BarChart data={data} barCategoryGap="24%" margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
 						<XAxis dataKey="id" hide />
@@ -99,7 +103,7 @@ export function UptimeBar({ checks }: { checks: Check[] }) {
 						<ChartTooltip
 							content={
 								<ChartTooltipContent
-									className="monitor-chart-tooltip min-w-36 gap-1.5 rounded-[6px] border-(--hairline) bg-white/97 px-3 py-2.5 shadow-[0_8px_24px_rgb(24_74_52/0.1),0_2px_6px_rgb(0_0_0/0.04)] backdrop-blur-sm"
+									className="min-w-36 gap-1.5 rounded-sm border-hairline bg-white/97 px-3 py-2.5 shadow-[0_8px_24px_rgb(24_74_52/0.1),0_2px_6px_rgb(0_0_0/0.04)] backdrop-blur-sm dark:border-white/12 dark:bg-night-surface/96 dark:text-night-body dark:shadow-[0_16px_40px_rgb(0_0_0/0.55),inset_0_1px_rgb(255_255_255/0.045)]"
 									hideIndicator={false}
 									nameKey="status"
 									labelFormatter={(_, payload) => formatBucketTime(payload[0].payload as UptimeDatum)}
@@ -123,12 +127,13 @@ export function UptimeBar({ checks }: { checks: Check[] }) {
 					</BarChart>
 				</ChartContainer>
 			</div>
-			<div className="uptime-legend">
-				<span>Oldest</span>
-				<span>
-					<i className="legend-up" /> Up <i className="legend-degraded" /> Degraded <i className="legend-down" /> Down
+			<div className="flex justify-between border-t border-border-divider p-[14px_22px_0] text-2xs text-ink-subtle-2 dark:border-white/6.5 dark:bg-night-elevated dark:text-night-faint-alt">
+				<span className="inline-flex items-center gap-1.25">Oldest</span>
+				<span className="inline-flex items-center gap-1.25">
+					<i className="size-1.5 rounded-full bg-primary-deep" /> Up <i className="ml-1.25 size-1.5 rounded-full bg-chart-degraded" />{' '}
+					Degraded <i className="ml-1.25 size-1.5 rounded-full bg-chart-down" /> Down
 				</span>
-				<span>Latest</span>
+				<span className="inline-flex items-center gap-1.25">Latest</span>
 			</div>
 		</div>
 	);
