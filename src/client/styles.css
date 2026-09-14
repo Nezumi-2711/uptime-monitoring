@@ -2,7 +2,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import './styles/LoginPage.css';
 @import './styles/StatusPage.css';
 @import './styles/DashboardPage.css';
 @import './styles/MonitorDetailPage.css';
@@ -589,6 +588,72 @@ button {
 @theme inline {
 	--font-sans: 'DM Sans', 'Helvetica Neue', sans-serif;
 	--font-mono: 'IBM Plex Mono', monospace;
+	--animate-enter: enter 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+	/* Brand emerald palette */
+	--color-brand: #3ecf8e;
+	--color-brand-deep: #24b47e;
+	--color-brand-hover: #36c487;
+	--color-brand-border: #35c586;
+	--color-brand-light: #4ae09e;
+	--color-brand-muted: #55816e;
+	--color-brand-dark-text: #090a0c;
+
+	/* Semantic text & border tokens (auto-adapt in dark mode via CSS variables) */
+	--color-ink: var(--ink);
+	--color-hairline: var(--hairline);
+	--color-faint: var(--faint);
+	--color-soft: var(--soft);
+	--color-night: var(--night);
+
+	/* Neutral text and icon shades */
+	--color-ink-label: #353535;
+	--color-ink-subtle: #626262;
+	--color-ink-footnote: #858585;
+	--color-icon-muted: #5f5f5f;
+
+	/* Dark mode surfaces */
+	--color-night-root: #090a0c;
+	--color-night-card: #111317;
+	--color-night-input: #0b0d0f;
+
+	/* Error alert state */
+	--color-error-bg: #fff6f6;
+	--color-error-border: #efcaca;
+	--color-error-text: #9f2f2f;
+
+	/* Letter spacing (tracking) */
+	--tracking-display: -1.5px;
+	--tracking-title: -1.2px;
+	--tracking-brand: -0.6px;
+	--tracking-overline: 0.08em;
+
+	/* Line height (leading) */
+	--leading-title: 1.16;
+	--leading-overline: 1.4;
+	--leading-alert: 1.45;
+	--leading-subtitle: 1.55;
+
+	/* Typography scale (matching DESIGN.md and app UI) */
+	--text-2xs: 10px;
+	--text-footnote: 11px;
+	--text-micro: 12px;
+	--text-caption: 13px;
+	--text-body: 14px;
+	--text-subtitle: 19px;
+	--text-brand: 20px;
+	--text-title-compact: 27px;
+	--text-title: 30px;
+	--text-display: 40px;
+
+	/* Custom breakpoints */
+	--breakpoint-compact: 440px;
+
+	/* Shadows */
+	--shadow-card-elevated: 0 18px 55px rgb(24 74 52 / 0.08), 0 2px 8px rgb(0 0 0 / 0.04);
+	--shadow-btn-primary: 0 1px 2px rgb(0 0 0 / 0.08), inset 0 1px rgb(255 255 255 / 0.2);
+	--drop-shadow-brand-glow: 0 0 12px rgba(62, 207, 142, 0.45);
+
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -622,10 +687,11 @@ button {
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
 	--color-background: var(--background);
-	--radius-sm: calc(var(--radius) * 0.6);
-	--radius-md: calc(var(--radius) * 0.8);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-xs: 4px;
+	--radius-sm: 6px;
+	--radius-md: 8px;
+	--radius-lg: 12px;
+	--radius-xl: 16px;
 	--radius-2xl: calc(var(--radius) * 1.8);
 	--radius-3xl: calc(var(--radius) * 2.2);
 	--radius-4xl: calc(var(--radius) * 2.6);

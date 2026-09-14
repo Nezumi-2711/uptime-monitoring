@@ -12,6 +12,10 @@ const buttonVariants = cva(
 				unstyled: null,
 				default:
 					'bg-oklch(0.205 0 0) text-oklch(0.985 0 0) hover:bg-oklch(0.205 0 0)/80 dark:bg-oklch(0.922 0 0) dark:text-oklch(0.205 0 0) dark:hover:bg-oklch(0.922 0 0)/80',
+				brand:
+					'rounded-sm border-brand-border bg-brand font-semibold text-ink shadow-btn-primary transition-all duration-150 hover:not-disabled:-translate-y-px hover:not-disabled:bg-brand-hover active:not-disabled:translate-y-px active:not-disabled:bg-brand-deep disabled:cursor-wait disabled:opacity-[0.62] dark:border-brand dark:bg-brand dark:text-brand-dark-text dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),0_4px_14px_rgba(62,207,142,0.3),inset_0_1px_0_rgba(255,255,255,0.35)] dark:hover:not-disabled:-translate-y-px dark:hover:not-disabled:border-brand-light dark:hover:not-disabled:bg-brand-light dark:hover:not-disabled:shadow-[0_4px_20px_rgba(62,207,142,0.45),inset_0_1px_0_rgba(255,255,255,0.4)] dark:active:not-disabled:translate-y-px dark:active:not-disabled:bg-brand-deep',
+				primary:
+					'rounded-sm border-brand-border bg-brand font-semibold text-ink shadow-btn-primary transition-all duration-150 hover:not-disabled:-translate-y-px hover:not-disabled:bg-brand-hover active:not-disabled:translate-y-px active:not-disabled:bg-brand-deep disabled:cursor-wait disabled:opacity-[0.62] dark:border-brand dark:bg-brand dark:text-brand-dark-text dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),0_4px_14px_rgba(62,207,142,0.3),inset_0_1px_0_rgba(255,255,255,0.35)] dark:hover:not-disabled:-translate-y-px dark:hover:not-disabled:border-brand-light dark:hover:not-disabled:bg-brand-light dark:hover:not-disabled:shadow-[0_4px_20px_rgba(62,207,142,0.45),inset_0_1px_0_rgba(255,255,255,0.4)] dark:active:not-disabled:translate-y-px dark:active:not-disabled:bg-brand-deep',
 				outline:
 					'border-oklch(0.922 0 0) bg-oklch(1 0 0) hover:bg-oklch(0.97 0 0) hover:text-oklch(0.145 0 0) aria-expanded:bg-oklch(0.97 0 0) aria-expanded:text-oklch(0.145 0 0) dark:border-oklch(0.922 0 0) dark:bg-oklch(0.922 0 0)/30 dark:hover:bg-oklch(0.922 0 0)/50 dark:border-oklch(1 0 0 / 10%) dark:bg-oklch(0.145 0 0) dark:hover:bg-oklch(0.269 0 0) dark:hover:text-oklch(0.985 0 0) dark:aria-expanded:bg-oklch(0.269 0 0) dark:aria-expanded:text-oklch(0.985 0 0) dark:dark:border-oklch(1 0 0 / 15%) dark:dark:bg-oklch(1 0 0 / 15%)/30 dark:dark:hover:bg-oklch(1 0 0 / 15%)/50',
 				secondary:
@@ -27,6 +31,7 @@ const buttonVariants = cva(
 				xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
 				sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
 				lg: 'h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
+				xl: 'min-h-10.5 gap-2 px-4 py-2 text-body',
 				icon: 'size-8',
 				'icon-xs':
 					"size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
