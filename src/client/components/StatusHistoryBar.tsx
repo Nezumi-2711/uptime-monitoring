@@ -10,10 +10,10 @@ type HistoryEntry = PublicService['history'][number];
 type HistoryDay = { day: number; uptimePct: number | null | undefined };
 
 function dayClass(uptimePct: number | null | undefined) {
-	if (uptimePct === null || uptimePct === undefined) return 'is-empty';
-	if (uptimePct === 100) return 'is-up';
-	if (uptimePct === 0) return 'is-down';
-	return 'is-partial';
+	if (uptimePct === null || uptimePct === undefined) return 'bg-uptime-empty dark:bg-night-uptime-empty';
+	if (uptimePct === 100) return 'bg-brand';
+	if (uptimePct === 0) return 'bg-uptime-down dark:bg-red-500';
+	return 'bg-uptime-partial dark:bg-amber-600';
 }
 
 function formatDay(day: number) {
@@ -56,9 +56,9 @@ export function StatusHistoryBar({ history }: { history: HistoryEntry[] }) {
 	const periods = mobile ? summarizeDays(days) : days.map(({ day, uptimePct }) => ({ startDay: day, endDay: day, uptimePct }));
 
 	return (
-		<div className="status-history">
+		<div className="w-full min-w-0">
 			<div
-				className="uptime-days"
+				className="flex h-8 max-mobile:h-7 w-full items-stretch gap-0.5 max-tablet:gap-px"
 				aria-label={
 					mobile
 						? `Uptime over the last ${HISTORY_DAYS} days, summarized in ${MOBILE_DAYS_PER_BAR}-day periods`
@@ -67,7 +67,7 @@ export function StatusHistoryBar({ history }: { history: HistoryEntry[] }) {
 			>
 				{periods.map(({ startDay, endDay, uptimePct }) => (
 					<span
-						className={`uptime-day ${dayClass(uptimePct)}`}
+						className={`min-w-0.5 flex-1 rounded-xs transition-[filter,transform] duration-140 ease-out hover:z-1 hover:scale-y-112 hover:brightness-92 hover:saturate-115 dark:hover:brightness-115 dark:hover:saturate-125 ${dayClass(uptimePct)}`}
 						key={startDay}
 						title={
 							startDay === endDay
@@ -79,9 +79,12 @@ export function StatusHistoryBar({ history }: { history: HistoryEntry[] }) {
 					/>
 				))}
 			</div>
-			<div className="uptime-days-caption" aria-hidden="true">
+			<div
+				className="mt-2 flex items-center gap-2.25 font-mono text-3xs leading-snug-sm text-ink-caption dark:text-faint"
+				aria-hidden="true"
+			>
 				<span>{HISTORY_DAYS} days ago</span>
-				<i />
+				<i className="h-px flex-1 bg-border-row dark:bg-white/8" />
 				<span>Today</span>
 			</div>
 		</div>

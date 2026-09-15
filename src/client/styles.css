@@ -2,7 +2,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import './styles/StatusPage.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -124,6 +123,19 @@
 		radial-gradient(ellipse 80% 50% at 50% -20%, rgba(62, 207, 142, 0.06), transparent 70%),
 		linear-gradient(180deg, #090a0c 0%, #0c0e12 68px, #08090b 68px, #08090b 100%);
 	color: #ededed;
+}
+
+.status-page-shell {
+	min-height: 100dvh;
+	background:
+		radial-gradient(circle at 12% 22%, rgb(62 207 142 / 0.07), transparent 28rem), linear-gradient(180deg, #fff 0, #fff 36%, #fafcfb 100%);
+}
+.dark .status-page-shell {
+	background:
+		radial-gradient(circle at 12% 22%, rgba(62, 207, 142, 0.08), transparent 30rem),
+		radial-gradient(circle at 88% 70%, rgba(36, 180, 126, 0.04), transparent 24rem),
+		linear-gradient(180deg, #090a0c 0%, #0c0e12 40%, #08090b 100%);
+	color: var(--color-border-row);
 }
 .dashboard-header {
 	position: sticky;
@@ -616,11 +628,6 @@
 	.dashboard-main {
 		width: min(100% - 32px, 1280px);
 	}
-	.status-header-inner,
-	.status-main,
-	.status-footer {
-		width: min(100% - 32px, 960px);
-	}
 	.dashboard-main {
 		padding: 40px 0 56px;
 	}
@@ -641,15 +648,6 @@
 @media (max-width: 520px) {
 	.dashboard-header-inner {
 		height: 62px;
-	}
-	.status-header-action {
-		min-height: 36px;
-		padding: 6px 14px;
-	}
-	.public-services-heading .icon-button {
-		flex: 0 0 44px;
-		width: 44px;
-		height: 44px;
 	}
 	.dashboard-main {
 		padding-top: 32px;
@@ -824,6 +822,11 @@
 	--color-night-surface: #13161b;
 	--color-night-card-alt: #15171b;
 	--color-night-incident: #151114;
+	--color-night-danger: #141113;
+	--color-night-summary: #0d0e12;
+	--color-night-banner-operational: #111815;
+	--color-night-maintenance-icon: #161a22;
+	--color-night-uptime-empty: #1c2028;
 	--color-night-option-hover: #181c24;
 
 	/* Dark mode text tones */
@@ -866,6 +869,11 @@
 	--color-status-checking-bg: #c6aa38;
 	--color-status-checking-dark: #e6c94b;
 
+	/* Uptime history bar colors */
+	--color-uptime-empty: #e8ebe9;
+	--color-uptime-down: #dc6262;
+	--color-uptime-partial: #e1bc45;
+
 	/* Incident status & stream colors */
 	--color-incident-border: #e8c3c3;
 	--color-incident-bg: #fff8f8;
@@ -873,6 +881,89 @@
 	--color-incident-active-bg: #fff0f0;
 	--color-incident-active-text: #aa4141;
 	--color-incident-resolved-bg: #eaf9f2;
+
+	/* Status overall banner colors */
+	--color-banner-operational-border: #b9e6d2;
+	--color-banner-operational-text: #125c41;
+	--color-banner-operational-from: #edfaf4;
+	--color-banner-operational-to: #f8fdfb;
+
+	--color-banner-degraded-border: #e7d796;
+	--color-banner-degraded-text: #705d0f;
+	--color-banner-degraded-from: #fff9e8;
+	--color-banner-degraded-to: #fffdf6;
+	--color-banner-degraded-dark-text: #f6c86a;
+	--color-banner-degraded-dark-border: rgba(224, 145, 63, 0.3);
+	--color-banner-degraded-dark-from: rgba(224, 145, 63, 0.14);
+	--color-banner-degraded-dark-via: rgba(180, 110, 24, 0.06);
+	--color-banner-degraded-dark-to: rgba(28, 22, 14, 0.6);
+	--color-banner-degraded-icon-border: rgb(178 145 24 / 0.25);
+	--color-banner-degraded-dark-icon-border: rgba(224, 145, 63, 0.35);
+	--color-banner-degraded-dark-icon-bg: rgba(28, 22, 14, 0.75);
+
+	--color-banner-down-border: #ebc1c1;
+	--color-banner-down-text: #8e3030;
+	--color-banner-down-to: #fffafa;
+	--color-banner-down-dark-via: rgba(174, 61, 61, 0.06);
+	--color-banner-down-dark-to: rgba(30, 16, 16, 0.6);
+	--color-banner-down-icon-border: rgb(174 61 61 / 0.22);
+	--color-banner-down-dark-icon-bg: rgba(30, 16, 16, 0.75);
+
+	/* Tone badge colors */
+	--color-tone-critical-border: #e8caca;
+	--color-tone-critical-bg: #fff4f4;
+	--color-tone-critical-text: #a93e3e;
+	--color-tone-major-border: #eddac2;
+	--color-tone-major-bg: #fff8ef;
+	--color-tone-major-text: #b25f18;
+	--color-tone-minor-border: #e8dfc2;
+	--color-tone-minor-bg: #fdfaee;
+	--color-tone-minor-text: #8a6d1f;
+	--color-tone-none-bg: #f5f5f5;
+
+	/* Scheduled maintenance theme tokens */
+	--color-maintenance-card-border: #c9d9ed;
+	--color-maintenance-header-border: #dce7f4;
+	--color-maintenance-gradient-from: #f2f7fd;
+	--color-maintenance-gradient-via: #f8fbff;
+	--color-maintenance-icon: #3f6fb8;
+	--color-maintenance-blue: #5a8fd0;
+	--color-maintenance-blue-light: #72a4e8;
+	--color-maintenance-overline: #5079b3;
+	--color-maintenance-overline-dark: #7ba6e2;
+	--color-maintenance-title: #29496f;
+	--color-maintenance-title-dark: #e5edfa;
+	--color-maintenance-badge-border: #cad9eb;
+	--color-maintenance-badge-text: #466b9c;
+	--color-maintenance-badge-text-dark: #8bb5ee;
+	--color-maintenance-row-border: #e6edf6;
+	--color-maintenance-icon-box-border: #d8e1ed;
+	--color-maintenance-icon-box-bg: #f8fafd;
+
+	/* Active incident theme tokens */
+	--color-active-incident-border: #e9c5c5;
+	--color-active-incident-header-border: #f0dede;
+	--color-active-incident-from: #fff4f4;
+	--color-active-incident-via: #fffafa;
+	--color-active-incident-overline: #a24a4a;
+	--color-active-incident-title: #5d2929;
+	--color-active-incident-badge-border: #e8caca;
+	--color-active-incident-badge-text: #8e3f3f;
+	--color-active-incident-row-border: #f1e5e5;
+	--color-active-incident-icon-border: #e5d6d6;
+	--color-active-incident-icon-bg: #fcf8f8;
+	--color-active-incident-icon-text: #765454;
+	--color-active-incident-subtext: #9a7777;
+	--color-active-incident-body: #6f5a5a;
+	--color-active-incident-meta: #8e4b4b;
+
+	/* Past incidents theme tokens */
+	--color-past-incidents-header-border: #e8ecea;
+	--color-past-incidents-from: #f4faf7;
+	--color-past-incidents-via: #fbfdfc;
+	--color-past-incidents-accent: #3f7a63;
+	--color-past-incidents-title: #1f3b2f;
+	--color-past-incidents-badge-border: #cfe3d9;
 
 	/* Borders & Dividers */
 	--color-border-subtle: #dedede;
@@ -892,6 +983,12 @@
 	--color-border-dialog-header: #e9ecea;
 	--color-border-section: #edf0ee;
 	--color-border-dialog-footer: #e4e8e6;
+	--color-border-action: #d5d5d5;
+	--color-border-accent-hover: #9bcdb7;
+	--color-border-summary: #e9e9e9;
+	--color-border-dashed-light: #dcdcdc;
+	--color-border-skeleton: #e4e4e4;
+	--color-border-footer: #e7ebe9;
 
 	/* Text & foreground tones */
 	--color-ink-muted-dark: #888888;
@@ -899,6 +996,14 @@
 	--color-ink-faint-alt: #aaaaaa;
 	--color-ink-code: #606060;
 	--color-ink-body: #444444;
+	--color-ink-caption: #a0a0a0;
+	--color-ink-detail: #555555;
+	--color-ink-label-muted: #4f4f4f;
+	--color-ink-heading-dark: #292323;
+	--color-ink-footer: #939393;
+	--color-arrow-muted: #c4c4c4;
+	--color-arrow-hover: #8f8f8f;
+	--color-danger-detail: #ae3d3d;
 	--color-accent-green: #17865b;
 	--color-accent-green-hover: #16885b;
 	--color-accent-green-deep: #11764e;
@@ -948,14 +1053,28 @@
 	--tracking-overline: 0.08em;
 	--tracking-metric: -1px;
 	--tracking-dialog-title: -0.35px;
+	--tracking-hero: -2.5px;
+	--tracking-hero-mobile: -1.8px;
+	--tracking-incident-title: -0.65px;
+	--tracking-metric-compact: -0.5px;
+	--tracking-card-heading: -0.25px;
+	--tracking-tight-sm: -0.2px;
+	--tracking-tag: 0.04em;
+	--tracking-mono-label: 0.06em;
 
 	/* Line height (leading) */
+	--leading-hero: 1.02;
 	--leading-title: 1.16;
+	--leading-tight-md: 1.2;
+	--leading-snug-sm: 1.3;
+	--leading-entry: 1.35;
 	--leading-overline: 1.4;
 	--leading-alert: 1.45;
 	--leading-subtitle: 1.55;
+	--leading-body-relaxed: 1.6;
 
 	/* Typography scale (matching DESIGN.md and app UI) */
+	--text-3xs: 9px;
 	--text-2xs: 10px;
 	--text-footnote: 11px;
 	--text-micro: 12px;
@@ -963,6 +1082,7 @@
 	--text-body: 14px;
 	--text-item: 15px;
 	--text-body-md: 16px;
+	--text-card-title: 17px;
 	--text-subtitle: 19px;
 	--text-brand-title: 20px;
 	--text-dialog-title: 21px;
@@ -971,6 +1091,8 @@
 	--text-metric: 32px;
 	--text-display-sm: 34px;
 	--text-display: 40px;
+	--text-incident-title: clamp(24px, 3vw, 30px);
+	--text-hero-status: clamp(38px, 6vw, 56px);
 
 	/* Sizing and layout tokens */
 	--spacing-panel-x: 26px;
@@ -986,9 +1108,21 @@
 	--spacing-select-max: 260px;
 	--spacing-textarea-h: 154px;
 	--spacing-textarea-sm-h: 132px;
+	--spacing-timeline-col: 14px;
+	--spacing-status-max: 960px;
 
 	/* Custom breakpoints */
 	--breakpoint-compact: 440px;
+	--breakpoint-mobile: 520px;
+	--breakpoint-tablet: 760px;
+
+	/* Border width & Blur */
+	--border-width-3: 3px;
+	--blur-header: 14px;
+
+	/* Animation tokens */
+	--animate-skeleton: skeleton 1.4s ease-in-out infinite;
+	--animate-blink: blink 1.8s ease-in-out infinite;
 
 	/* Radius tokens */
 	--radius-badge: 5px;
@@ -999,8 +1133,30 @@
 
 	/* Shadows */
 	--shadow-card-elevated: 0 18px 55px rgb(24 74 52 / 0.08), 0 2px 8px rgb(0 0 0 / 0.04);
+	--shadow-card-elevated-green: 0 14px 40px rgb(28 65 49 / 0.04);
 	--shadow-btn-primary: 0 1px 2px rgb(0 0 0 / 0.08), inset 0 1px rgb(255 255 255 / 0.2);
 	--drop-shadow-brand-glow: 0 0 12px rgba(62, 207, 142, 0.45);
+	--shadow-timeline-dot: 0 0 0 1px rgb(36 180 126 / 0.24);
+	--shadow-maintenance-card: 0 14px 40px rgb(49 93 151 / 0.06);
+	--shadow-active-incident: 0 14px 40px rgb(117 38 38 / 0.06);
+	--shadow-active-incident-icon: 0 4px 14px rgb(130 34 34 / 0.06);
+	--shadow-pulse-down: 0 0 0 4px rgb(217 92 92 / 0.1);
+	--shadow-brand-dot: 0 0 0 3px rgb(62 207 142 / 0.12);
+	--shadow-brand-dot-dark: 0 0 0 3px rgba(62, 207, 142, 0.2);
+	--shadow-incident-detail: 0 12px 36px rgb(0 0 0 / 0.035);
+	--shadow-incident-detail-dark: 0 16px 40px rgba(0, 0, 0, 0.35);
+	--shadow-banner-operational: 0 12px 32px rgb(24 110 76 / 0.06);
+	--shadow-banner-operational-dark: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(62, 207, 142, 0.05);
+	--shadow-banner-degraded: 0 12px 32px rgb(130 105 14 / 0.06);
+	--shadow-banner-degraded-dark: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(224, 145, 63, 0.06);
+	--shadow-banner-down: 0 12px 32px rgb(130 34 34 / 0.06);
+	--shadow-banner-down-dark: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(217, 92, 92, 0.06);
+
+	/* Background gradients */
+	--background-image-skeleton-banner: linear-gradient(90deg, #eef2f0 20%, #f8faf9 50%, #eef2f0 80%);
+	--background-image-skeleton-banner-dark: linear-gradient(90deg, #13161c 20%, #1a1e27 50%, #13161c 80%);
+	--background-image-skeleton-item: linear-gradient(90deg, #f0f2f1 20%, #fafafa 50%, #f0f2f1 80%);
+	--background-image-skeleton-item-dark: linear-gradient(90deg, #151821 20%, #1f2430 50%, #151821 80%);
 
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
