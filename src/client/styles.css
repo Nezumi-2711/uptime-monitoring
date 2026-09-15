@@ -3,7 +3,6 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import './styles/StatusPage.css';
-@import './styles/SettingsPage.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -730,6 +729,52 @@
 	}
 }
 
+@utility table-scrollbar {
+	scrollbar-color: var(--color-slate-300) transparent;
+	scrollbar-width: thin;
+
+	&::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background: var(--color-slate-300);
+		border-radius: 9999px;
+	}
+}
+
+.dark .table-scrollbar {
+	scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+
+	&::-webkit-scrollbar-thumb {
+		background: rgba(255, 255, 255, 0.2);
+	}
+}
+
+@utility dialog-scrollbar {
+	scrollbar-color: #bdc9c3 transparent;
+	scrollbar-width: thin;
+
+	&::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background: #bdc9c3;
+		border-radius: 9999px;
+	}
+}
+
+.dark .dialog-scrollbar {
+	scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+
+	&::-webkit-scrollbar-thumb {
+		background: rgba(255, 255, 255, 0.2);
+	}
+}
+
 @theme inline {
 	--font-sans: 'DM Sans', 'Helvetica Neue', sans-serif;
 	--font-mono: 'IBM Plex Mono', monospace;
@@ -750,6 +795,7 @@
 	--color-ink: var(--ink);
 	--color-hairline: var(--hairline);
 	--color-faint: var(--faint);
+	--color-muted-text: var(--muted);
 	--color-soft: var(--soft);
 	--color-night: var(--night);
 	--color-primary-deep: var(--primary-deep);
@@ -778,6 +824,7 @@
 	--color-night-surface: #13161b;
 	--color-night-card-alt: #15171b;
 	--color-night-incident: #151114;
+	--color-night-option-hover: #181c24;
 
 	/* Dark mode text tones */
 	--color-night-metric: #f4f7f6;
@@ -801,6 +848,12 @@
 	--color-surface-sparkline: #fdfefe;
 	--color-surface-uptime: #fcfefd;
 	--color-surface-danger-subtle: #fdfafa;
+	--color-surface-option: #fbfcfb;
+	--color-surface-option-hover: #f8fbf9;
+	--color-surface-fieldset: #fafcfb;
+	--color-surface-dialog-header: #fdfefd;
+	--color-surface-dialog-footer: #fafbfa;
+	--color-surface-highlight: #f2f5f3;
 
 	/* Status orb colors */
 	--color-status-online-border: #c5f1df;
@@ -832,6 +885,13 @@
 	--color-border-accent-checked: #8dd9b9;
 	--color-border-hero: #e7e7e7;
 	--color-border-divider: #f0f0f0;
+	--color-border-panel: #e6e6e6;
+	--color-border-control: #cfcfcf;
+	--color-border-option: #e2e6e4;
+	--color-border-option-hover: #cbd6d1;
+	--color-border-dialog-header: #e9ecea;
+	--color-border-section: #edf0ee;
+	--color-border-dialog-footer: #e4e8e6;
 
 	/* Text & foreground tones */
 	--color-ink-muted-dark: #888888;
@@ -849,6 +909,14 @@
 	--color-danger-hover: #922f2f;
 	--color-danger-bg: #fff2f2;
 	--color-danger-border: #efd1d1;
+	--color-danger-icon: #a74545;
+
+	/* Settings badges & feedback */
+	--color-badge-green-border: #bcead6;
+	--color-badge-green-bg: #f0fbf6;
+	--color-success-banner-border: #bde9d5;
+	--color-success-banner-bg: #f2fbf7;
+	--color-success-banner-text: #16754f;
 
 	/* Incident tone colors */
 	--color-tone-blue: #2563a8;
@@ -879,6 +947,7 @@
 	--tracking-brand: -0.6px;
 	--tracking-overline: 0.08em;
 	--tracking-metric: -1px;
+	--tracking-dialog-title: -0.35px;
 
 	/* Line height (leading) */
 	--leading-title: 1.16;
@@ -904,11 +973,16 @@
 	--text-display: 40px;
 
 	/* Sizing and layout tokens */
+	--spacing-panel-x: 26px;
 	--spacing-metric-h: 142px;
 	--spacing-row-h: 112px;
 	--spacing-skeleton-h: 104px;
 	--spacing-dialog-max: 860px;
 	--spacing-dialog-btn: 148px;
+	--spacing-dialog-channel: 720px;
+	--spacing-history-max: 380px;
+	--spacing-activity-max: 420px;
+	--spacing-table-min: 650px;
 	--spacing-select-max: 260px;
 	--spacing-textarea-h: 154px;
 	--spacing-textarea-sm-h: 132px;
@@ -917,7 +991,9 @@
 	--breakpoint-compact: 440px;
 
 	/* Radius tokens */
+	--radius-badge: 5px;
 	--radius-card-sm: 7px;
+	--radius-card: 10px;
 	--radius-actions: 9px;
 	--radius-dialog: 14px;
 

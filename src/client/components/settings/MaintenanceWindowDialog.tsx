@@ -115,8 +115,8 @@ export function MaintenanceWindowDialog({ editing, onClose }: { editing: Mainten
 					<DialogTitle>{editing ? `Edit ${editing.name}` : 'Add maintenance window'}</DialogTitle>
 					<DialogDescription>Probes continue, but alerts and uptime calculations pause for selected services.</DialogDescription>
 				</DialogHeader>
-				<form className="maintenance-form" onSubmit={submit}>
-					<label className="field maintenance-name" htmlFor="maintenance-name">
+				<form className="grid grid-cols-2 gap-x-4 gap-y-5 mt-3" onSubmit={submit}>
+					<label className="field col-span-full" htmlFor="maintenance-name">
 						<span>Name</span>
 						<Input
 							id="maintenance-name"
@@ -147,7 +147,7 @@ export function MaintenanceWindowDialog({ editing, onClose }: { editing: Mainten
 							required
 						/>
 					</label>
-					<div className="field maintenance-timezone">
+					<div className="field col-span-full">
 						<span id="maintenance-timezone-label">Timezone</span>
 						<Select value={form.timezone} onValueChange={(timezone) => setForm({ ...form, timezone })}>
 							<SelectTrigger aria-labelledby="maintenance-timezone-label">
@@ -162,40 +162,47 @@ export function MaintenanceWindowDialog({ editing, onClose }: { editing: Mainten
 							</SelectContent>
 						</Select>
 					</div>
-					<fieldset className="maintenance-services">
+					<fieldset className="col-span-full min-w-0 m-0 p-0 border-0 [&>legend]:mb-2 [&>legend]:text-caption [&>legend]:font-medium [&>legend]:text-ink-label dark:[&>legend]:text-night-body">
 						<legend>Services</legend>
 						<DropdownMenuPrimitive.Root>
 							<DropdownMenuPrimitive.Trigger asChild>
 								<button
-									className="maintenance-service-select"
+									className="group flex w-full min-h-10.5 items-center justify-between gap-4 px-3 py-2 rounded-md border border-border-subtle bg-white text-sm text-left text-ink shadow-[inset_0_1px_2px_rgb(0_0_0/0.025)] cursor-pointer transition-[border-color,box-shadow] duration-120 hover:border-border-input-hover focus-visible:outline-none focus-visible:border-primary-deep focus-visible:shadow-[0_0_0_3px_rgb(36_180_126/0.14)] data-[state=open]:border-primary-deep data-[state=open]:shadow-[0_0_0_3px_rgb(36_180_126/0.14)] disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/12 dark:bg-night-input dark:text-gray-50 dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] dark:hover:border-white/22 dark:focus-visible:border-primary-deep dark:focus-visible:shadow-[0_0_0_3px_rgba(62,207,142,0.2)] dark:data-[state=open]:border-primary-deep dark:data-[state=open]:shadow-[0_0_0_3px_rgba(62,207,142,0.2)]"
 									type="button"
 									disabled={monitorsQuery.isPending || monitors.length === 0}
 									aria-label="Select services for this maintenance window"
 								>
-									<span className={selectedMonitors.length === 0 ? 'is-placeholder' : undefined}>
+									<span className={selectedMonitors.length === 0 ? 'text-faint' : undefined}>
 										{monitorsQuery.isPending
 											? 'Loading services…'
 											: monitors.length === 0
 												? 'No services available'
 												: selectedServicesLabel}
 									</span>
-									<span className="maintenance-service-select-meta">
+									<span className="flex items-center gap-2.25 text-faint [&>small]:font-mono [&>small]:text-2xs/[1.3] [&>small]:font-medium [&>small]:whitespace-nowrap [&>svg]:size-4 [&>svg]:transition-transform [&>svg]:duration-120 group-data-[state=open]:rotate-180">
 										{selectedMonitors.length > 0 && <small>{selectedMonitors.length} selected</small>}
 										<ChevronDown aria-hidden="true" />
 									</span>
 								</button>
 							</DropdownMenuPrimitive.Trigger>
 							<DropdownMenuPrimitive.Portal>
-								<DropdownMenuPrimitive.Content className="maintenance-service-menu" sideOffset={5} align="start">
+								<DropdownMenuPrimitive.Content
+									className="z-70 w-(--radix-dropdown-menu-trigger-width) max-h-[min(256px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto p-1 rounded-lg border border-hairline bg-white shadow-[0_8px_24px_rgb(0_0_0/0.08)] dark:border-white/12 dark:bg-night-card dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)]"
+									sideOffset={5}
+									align="start"
+								>
 									{monitors.map((monitor) => (
 										<DropdownMenuPrimitive.CheckboxItem
 											key={monitor.id}
-											className="maintenance-service-option"
+											className="relative flex items-center gap-2.5 min-h-9 px-2.25 py-1.75 rounded-md text-caption text-ink cursor-pointer outline-none select-none focus:bg-surface-highlight data-highlighted:bg-surface-highlight dark:text-night-body dark:focus:bg-white/6 dark:focus:text-white dark:data-highlighted:bg-white/6 dark:data-highlighted:text-white"
 											checked={form.monitorIds.includes(monitor.id)}
 											onCheckedChange={(checked) => toggleMonitor(monitor.id, checked === true)}
 											onSelect={(event) => event.preventDefault()}
 										>
-											<span className="maintenance-service-check" aria-hidden="true">
+											<span
+												className="grid shrink-0 size-4.25 place-items-center rounded border border-border-control bg-white text-white dark:border-white/20 dark:bg-night-icon in-data-[state=checked]:border-primary-deep in-data-[state=checked]:bg-primary-deep [&>svg]:size-3 [&>svg]:stroke-[2.5]"
+												aria-hidden="true"
+											>
 												<DropdownMenuPrimitive.ItemIndicator>
 													<Check />
 												</DropdownMenuPrimitive.ItemIndicator>
@@ -207,18 +214,22 @@ export function MaintenanceWindowDialog({ editing, onClose }: { editing: Mainten
 							</DropdownMenuPrimitive.Portal>
 						</DropdownMenuPrimitive.Root>
 						{monitors.length === 0 && !monitorsQuery.isPending && (
-							<small className="maintenance-services-empty">Add a monitor before assigning a maintenance window.</small>
+							<small className="block mt-1.75 text-footnote text-muted-text dark:text-gray-400">
+								Add a monitor before assigning a maintenance window.
+							</small>
 						)}
 					</fieldset>
-					<div className="settings-toggle maintenance-enabled">
+					<div className="col-span-full flex items-center gap-2.75 [&>label]:cursor-pointer [&_strong]:block [&_strong]:text-caption [&_strong]:font-medium dark:[&_strong]:text-gray-50 [&_small]:block [&_small]:mt-1 [&_small]:text-muted-text dark:[&_small]:text-gray-400">
 						<Switch id="maintenance-enabled" checked={form.enabled} onCheckedChange={(enabled) => setForm({ ...form, enabled })} />
 						<label htmlFor="maintenance-enabled">
 							<strong>Enable this window</strong>
 							<small>The schedule repeats every day in the selected timezone.</small>
 						</label>
 					</div>
-					<p className="maintenance-helper">Checks run every five minutes. Add a few minutes of padding before and after the backup.</p>
-					<div className="form-actions compact-actions maintenance-actions">
+					<p className="-mt-1.5 col-span-full text-xs leading-normal text-muted-text dark:text-gray-400">
+						Checks run every five minutes. Add a few minutes of padding before and after the backup.
+					</p>
+					<div className="form-actions compact-actions col-span-full">
 						<Button variant="unstyled" className="secondary-button" type="button" onClick={close}>
 							Cancel
 						</Button>

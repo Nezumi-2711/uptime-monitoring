@@ -25,13 +25,21 @@ import { NotificationChannelDialog } from './NotificationChannelDialog';
 
 function DeliveryHistory({ channel }: { channel: NotificationChannel }) {
 	const deliveriesQuery = useNotificationDeliveriesQuery(channel.id);
-	if (deliveriesQuery.isPending) return <div className="channel-history-state">Loading delivery history…</div>;
-	if (deliveriesQuery.isError) return <div className="channel-history-state form-error">Unable to load delivery history.</div>;
-	if (deliveriesQuery.data.deliveries.length === 0) return <div className="channel-history-state">No deliveries recorded yet.</div>;
+	if (deliveriesQuery.isPending)
+		return <div className="w-full mt-4 text-xs text-muted-text dark:text-gray-400">Loading delivery history…</div>;
+	if (deliveriesQuery.isError) return <div className="w-full mt-4 text-xs form-error">Unable to load delivery history.</div>;
+	if (deliveriesQuery.data.deliveries.length === 0)
+		return <div className="w-full mt-4 text-xs text-muted-text dark:text-gray-400">No deliveries recorded yet.</div>;
 	return (
-		<div className="channel-history" aria-label={`${channel.name} delivery history`}>
+		<div
+			className="grid content-start w-full max-h-history-max gap-px mt-4.5 rounded-md border border-border-panel bg-border-panel overflow-auto overscroll-contain table-scrollbar dark:border-white/8 dark:bg-white/6"
+			aria-label={`${channel.name} delivery history`}
+		>
 			{deliveriesQuery.data.deliveries.map((delivery) => (
-				<div className="channel-history-row" key={delivery.id}>
+				<div
+					className="grid grid-cols-[78px_minmax(100px,0.8fr)_minmax(145px,1fr)_minmax(120px,1fr)_auto] items-center gap-3 p-2.5 sm:px-3 text-footnote bg-white min-w-table-min dark:bg-night-panel dark:hover:bg-night-subtle [&>strong]:font-semibold [&>strong]:capitalize dark:[&>strong]:text-gray-50 [&>span]:text-muted-text dark:[&>span]:text-gray-400 [&>small]:text-muted-text dark:[&>small]:text-gray-400"
+					key={delivery.id}
+				>
 					<Badge variant={delivery.ok ? 'online' : 'offline'}>{delivery.ok ? 'Delivered' : 'Failed'}</Badge>
 					<strong>{delivery.event.replaceAll('_', ' ')}</strong>
 					<span>{new Date(delivery.createdAt).toLocaleString()}</span>
@@ -57,7 +65,7 @@ export function NotificationChannelsPanel() {
 
 	return (
 		<>
-			<div className="channel-panel-header">
+			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 px-5 sm:px-panel-x py-5 border-b border-border-row dark:border-b-white/7 [&>p]:m-0 [&>p]:text-caption [&>p]:text-muted-text dark:[&>p]:text-gray-400 [&_svg]:size-3.75">
 				<p>Route automatic and manual incident activity to the right team.</p>
 				<Button variant="unstyled" className="secondary-button" type="button" onClick={() => setDialog({ open: true, editing: null })}>
 					<Plus /> Add channel
@@ -70,22 +78,25 @@ export function NotificationChannelsPanel() {
 					<EmptyTitle>Unable to load notification channels</EmptyTitle>
 				</Empty>
 			) : channelsQuery.data.channels.length === 0 ? (
-				<Empty className="channel-empty">
+				<Empty className="py-11 px-6">
 					<EmptyTitle>No notification channels</EmptyTitle>
 					<EmptyDescription>Add Slack, Discord, Telegram, or a raw webhook destination.</EmptyDescription>
 				</Empty>
 			) : (
 				<div className="channel-list">
 					{channelsQuery.data.channels.map((channel) => (
-						<article className="channel-row" key={channel.id}>
-							<div className="channel-row-summary">
-								<div className="channel-main">
-									<div className="channel-title">
+						<article
+							className="flex flex-col px-5 sm:px-panel-x py-5.25 border-t border-border-row first:border-t-0 dark:border-t-white/6"
+							key={channel.id}
+						>
+							<div className="flex flex-col sm:flex-row w-full sm:items-center justify-between gap-6">
+								<div className="min-w-0">
+									<div className="flex items-center flex-wrap gap-2 [&>strong]:text-sm [&>strong]:font-semibold dark:[&>strong]:text-gray-50">
 										<strong>{channel.name}</strong>
 										<Badge variant="maintenance">{channel.type}</Badge>
-										{!channel.enabled && <span className="maintenance-disabled">Disabled</span>}
+										{!channel.enabled && <span className="text-footnote text-faint dark:text-gray-400">Disabled</span>}
 									</div>
-									<div className="channel-delivery">
+									<div className="flex items-center flex-wrap gap-2 my-2 text-footnote text-faint dark:text-gray-400">
 										{channel.lastDelivery ? (
 											<Badge variant={channel.lastDelivery.ok ? 'online' : 'offline'}>
 												{channel.lastDelivery.ok ? 'Delivered' : 'Failed'}
@@ -99,7 +110,7 @@ export function NotificationChannelsPanel() {
 											</span>
 										)}
 									</div>
-									<div className="channel-services">
+									<div className="flex items-center flex-wrap gap-2 [&>span]:px-1.75 [&>span]:py-1 [&>span]:rounded-badge [&>span]:border [&>span]:border-border-subtle [&>span]:bg-surface-soft [&>span]:text-footnote [&>span]:text-muted-text dark:[&>span]:border-white/8 dark:[&>span]:bg-night-icon dark:[&>span]:text-gray-400 [&>em]:px-1.75 [&>em]:py-1 [&>em]:rounded-badge [&>em]:border [&>em]:border-border-subtle [&>em]:bg-surface-soft [&>em]:text-footnote [&>em]:not-italic [&>em]:text-muted-text dark:[&>em]:border-white/8 dark:[&>em]:bg-night-icon dark:[&>em]:text-gray-400">
 										{channel.monitorIds.length === 0 ? (
 											<em>All services</em>
 										) : (
@@ -107,10 +118,10 @@ export function NotificationChannelsPanel() {
 										)}
 									</div>
 								</div>
-								<div className="channel-actions">
+								<div className="flex items-center flex-wrap gap-2 shrink-0 self-stretch sm:self-auto [&_svg]:size-3.75">
 									<Button
 										variant="unstyled"
-										className="secondary-button compact-button"
+										className="secondary-button min-h-8.5 px-2.5 py-1.75"
 										type="button"
 										disabled={testMutation.isPending}
 										onClick={() => testMutation.mutate(channel.id)}
@@ -119,7 +130,7 @@ export function NotificationChannelsPanel() {
 									</Button>
 									<Button
 										variant="unstyled"
-										className="secondary-button compact-button"
+										className="secondary-button min-h-8.5 px-2.5 py-1.75"
 										type="button"
 										aria-expanded={historyId === channel.id}
 										onClick={() => setHistoryId((current) => (current === channel.id ? null : channel.id))}
@@ -137,7 +148,7 @@ export function NotificationChannelsPanel() {
 									</Button>
 									<Button
 										variant="unstyled"
-										className="icon-button danger-icon-button"
+										className="icon-button text-danger-icon dark:text-red-400 dark:hover:not(:disabled):border-red-500/35 dark:hover:not(:disabled):text-red-300 dark:hover:not(:disabled):bg-red-500/12"
 										type="button"
 										aria-label={`Delete ${channel.name}`}
 										onClick={() => setDeleting(channel)}
@@ -151,8 +162,12 @@ export function NotificationChannelsPanel() {
 					))}
 				</div>
 			)}
-			{testMutation.isError && <p className="form-error channel-feedback">{testMutation.error.message}</p>}
-			{testMutation.isSuccess && <p className="settings-success channel-feedback">Test notification delivered.</p>}
+			{testMutation.isError && <p className="form-error mx-panel-x mb-5 dark:text-red-400">{testMutation.error.message}</p>}
+			{testMutation.isSuccess && (
+				<p className="-mt-2 px-3 py-2.5 rounded-md border border-success-banner-border bg-success-banner-bg text-xs text-success-banner-text dark:border-brand/30 dark:bg-brand/10 dark:text-brand-soft mx-panel-x mb-5">
+					Test notification delivered.
+				</p>
+			)}
 			{dialog.open && <NotificationChannelDialog editing={dialog.editing} onClose={() => setDialog({ open: false, editing: null })} />}
 			<AlertDialog open={deleting !== null} onOpenChange={(open) => !open && !deleteMutation.isPending && setDeleting(null)}>
 				<AlertDialogContent>
