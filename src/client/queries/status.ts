@@ -12,7 +12,8 @@ export function useStatusQuery() {
 		queryKey: statusKeys.all,
 		queryFn: ({ signal }) => getStatus(signal),
 		refetchInterval: 60_000,
-		refetchIntervalInBackground: false,
+		refetchIntervalInBackground: true,
+		refetchOnWindowFocus: true,
 	});
 }
 

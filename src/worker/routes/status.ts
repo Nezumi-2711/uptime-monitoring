@@ -9,6 +9,7 @@ import { resolveFavicon } from './monitors';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FAVICON_CACHE_SECONDS = 86_400;
+const STATUS_CACHE_TIME_HEADER = 'X-Upwatch-Status-Cache-Time';
 type ServiceStatus = 'up' | 'degraded' | 'down' | 'unknown' | 'maintenance';
 type OverallStatus = 'operational' | 'degraded' | 'down';
 type DailyAggregate = { monitorId: number; day: Date; totalChecks: number; upChecks: number };
@@ -134,20 +135,34 @@ function statusCacheKey(context: Context<{ Bindings: Env }>): Request {
  * STATUS_CACHE_SECONDS env var to 0 to disable.
  */
 async function cachedStatusResponse(context: Context<{ Bindings: Env }>): Promise<Response | undefined> {
-	if (resolveStatusCacheSeconds(context.env) <= 0) return undefined;
+	const maxAgeSeconds = resolveStatusCacheSeconds(context.env);
+	if (maxAgeSeconds <= 0) return undefined;
 	const cache = edgeCache();
 	if (!cache) return undefined;
 	try {
-		return await cache.match(statusCacheKey(context));
+		const cached = await cache.match(statusCacheKey(context));
+		if (!cached) return undefined;
+		if (!isStatusCacheFresh(cached, maxAgeSeconds)) return undefined;
+		return cached;
 	} catch {
 		return undefined;
 	}
 }
 
+export function isStatusCacheFresh(response: Response, maxAgeSeconds: number, now = Date.now()): boolean {
+	const cachedAt = Number(response.headers.get(STATUS_CACHE_TIME_HEADER));
+	return Number.isFinite(cachedAt) && now - cachedAt < maxAgeSeconds * 1_000;
+}
+
 function jsonWithEdgeCache(context: Context<{ Bindings: Env }>, body: unknown): Response {
 	const seconds = resolveStatusCacheSeconds(context.env);
 	if (seconds <= 0) return Response.json(body);
-	const response = Response.json(body, { headers: { 'Cache-Control': `public, max-age=${seconds}` } });
+	const response = Response.json(body, {
+		headers: {
+			'Cache-Control': `public, max-age=${seconds}`,
+			[STATUS_CACHE_TIME_HEADER]: String(Date.now()),
+		},
+	});
 	const cache = edgeCache();
 	if (cache) {
 		try {

@@ -2,6 +2,7 @@ import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env, exports as worker } from 'cloudflare:workers';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DEGRADED_MESSAGE } from '../src/worker/ai/fallback-message';
+import { isStatusCacheFresh } from '../src/worker/routes/status';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -141,6 +142,17 @@ describe('public status API', () => {
 		]) {
 			expect(body.services[0]).not.toHaveProperty(privateField);
 		}
+	});
+
+	it('only serves status cache entries within the configured TTL', () => {
+		const now = 1_000_000;
+		const fresh = new Response(null, { headers: { 'X-Upwatch-Status-Cache-Time': String(now - 59_999) } });
+		const expired = new Response(null, { headers: { 'X-Upwatch-Status-Cache-Time': String(now - 60_000) } });
+		const legacy = new Response();
+
+		expect(isStatusCacheFresh(fresh, 60, now)).toBe(true);
+		expect(isStatusCacheFresh(expired, 60, now)).toBe(false);
+		expect(isStatusCacheFresh(legacy, 60, now)).toBe(false);
 	});
 
 	it('keeps a service operational while failures are unconfirmed', async () => {
