@@ -10,6 +10,11 @@ import { resolveFavicon } from './monitors';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FAVICON_CACHE_SECONDS = 86_400;
 const STATUS_CACHE_TIME_HEADER = 'X-Upwatch-Status-Cache-Time';
+const STATUS_NO_STORE_HEADERS = {
+	'Cache-Control': 'no-store',
+	'CDN-Cache-Control': 'no-store',
+	'Cloudflare-CDN-Cache-Control': 'no-store',
+};
 type ServiceStatus = 'up' | 'degraded' | 'down' | 'unknown' | 'maintenance';
 type OverallStatus = 'operational' | 'degraded' | 'down';
 type DailyAggregate = { monitorId: number; day: Date; totalChecks: number; upChecks: number };
@@ -143,7 +148,7 @@ async function cachedStatusResponse(context: Context<{ Bindings: Env }>): Promis
 		const cached = await cache.match(statusCacheKey(context));
 		if (!cached) return undefined;
 		if (!isStatusCacheFresh(cached, maxAgeSeconds)) return undefined;
-		return cached;
+		return statusResponse(cached);
 	} catch {
 		return undefined;
 	}
@@ -154,10 +159,21 @@ export function isStatusCacheFresh(response: Response, maxAgeSeconds: number, no
 	return Number.isFinite(cachedAt) && now - cachedAt < maxAgeSeconds * 1_000;
 }
 
+function statusResponse(response: Response): Response {
+	const headers = new Headers(response.headers);
+	for (const [name, value] of Object.entries(STATUS_NO_STORE_HEADERS)) headers.set(name, value);
+	headers.delete(STATUS_CACHE_TIME_HEADER);
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+}
+
 function jsonWithEdgeCache(context: Context<{ Bindings: Env }>, body: unknown): Response {
 	const seconds = resolveStatusCacheSeconds(context.env);
-	if (seconds <= 0) return Response.json(body);
-	const response = Response.json(body, {
+	if (seconds <= 0) return Response.json(body, { headers: STATUS_NO_STORE_HEADERS });
+	const cachedResponse = Response.json(body, {
 		headers: {
 			'Cache-Control': `public, max-age=${seconds}`,
 			[STATUS_CACHE_TIME_HEADER]: String(Date.now()),
@@ -166,12 +182,12 @@ function jsonWithEdgeCache(context: Context<{ Bindings: Env }>, body: unknown): 
 	const cache = edgeCache();
 	if (cache) {
 		try {
-			context.executionCtx.waitUntil(cache.put(statusCacheKey(context), response.clone()).catch(() => undefined));
+			context.executionCtx.waitUntil(cache.put(statusCacheKey(context), cachedResponse).catch(() => undefined));
 		} catch {
 			// No ExecutionContext available (e.g. unit tests): serve without populating the edge cache.
 		}
 	}
-	return response;
+	return Response.json(body, { headers: STATUS_NO_STORE_HEADERS });
 }
 
 const statusRoutes = new Hono<{ Bindings: Env }>();

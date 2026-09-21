@@ -12,7 +12,7 @@ export function useStatusQuery() {
 		queryKey: statusKeys.all,
 		queryFn: ({ signal }) => getStatus(signal),
 		refetchInterval: 60_000,
-		refetchIntervalInBackground: true,
+		refetchIntervalInBackground: false,
 		refetchOnWindowFocus: true,
 	});
 }
@@ -21,8 +21,9 @@ export function useIncidentHistoryQuery() {
 	return useQuery({
 		queryKey: statusKeys.history,
 		queryFn: ({ signal }) => getIncidentHistory(signal),
-		refetchInterval: 120_000,
+		refetchInterval: 300_000,
 		refetchIntervalInBackground: false,
+		refetchOnWindowFocus: true,
 	});
 }
 

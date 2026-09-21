@@ -40,13 +40,13 @@ export type PublicStatus = {
 };
 
 export function getStatus(signal?: AbortSignal) {
-	return getJson<PublicStatus>('/api/status', { signal });
+	return getJson<PublicStatus>('/api/status', { signal, cache: 'no-store' });
 }
 
 export function getIncidentHistory(signal?: AbortSignal) {
-	return getJson<{ incidents: PublicIncident[] }>('/api/status/incidents', { signal });
+	return getJson<{ incidents: PublicIncident[] }>('/api/status/incidents', { signal, cache: 'no-store' });
 }
 
 export function getPublicIncident(id: number, signal?: AbortSignal) {
-	return getJson<{ incident: PublicIncident }>(`/api/status/incidents/${id}`, { signal });
+	return getJson<{ incident: PublicIncident }>(`/api/status/incidents/${id}`, { signal, cache: 'no-store' });
 }

@@ -119,6 +119,10 @@ describe('public status API', () => {
 		const body = await response.json<PublicStatusResponse>();
 
 		expect(response.status).toBe(200);
+		expect(response.headers.get('Cache-Control')).toBe('no-store');
+		expect(response.headers.get('CDN-Cache-Control')).toBe('no-store');
+		expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store');
+		expect(response.headers.get('X-Upwatch-Status-Cache-Time')).toBeNull();
 		expect(body.overall).toBe('operational');
 		expect(body.updatedAt).toEqual(expect.any(Number));
 		expect(body.services).toHaveLength(1);
